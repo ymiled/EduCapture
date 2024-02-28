@@ -87,6 +87,7 @@ import android.widget.Toast;
 
 import androidx.activity.OnBackPressedCallback;
 import androidx.annotation.Keep;
+import androidx.annotation.NonNull;
 import androidx.appcompat.app.AppCompatActivity;
 import androidx.appcompat.widget.PopupMenu;
 import androidx.appcompat.widget.SwitchCompat;
@@ -107,6 +108,8 @@ import com.android.volley.VolleyError;
 import com.android.volley.toolbox.JsonObjectRequest;
 import com.android.volley.toolbox.StringRequest;
 import com.android.volley.toolbox.Volley;
+import com.google.android.gms.tasks.OnFailureListener;
+import com.google.android.gms.tasks.OnSuccessListener;
 import com.google.android.material.bottomsheet.BottomSheetDialog;
 import com.google.android.material.chip.Chip;
 import com.google.android.material.chip.ChipGroup;
@@ -114,6 +117,8 @@ import com.google.android.material.snackbar.Snackbar;
 import com.google.android.material.textfield.TextInputLayout;
 import com.google.common.base.CaseFormat;
 import com.google.common.base.Strings;
+import com.google.firebase.firestore.DocumentReference;
+import com.google.firebase.firestore.FirebaseFirestore;
 import com.google.zxing.integration.android.IntentIntegrator;
 import com.google.zxing.integration.android.IntentResult;
 
@@ -3869,6 +3874,63 @@ public class DisplayDBEntry extends AppCompatActivity implements PopupMenu.OnMen
         if (exit)
             leave();
 
+        // Sauvegarde de la note dans la base de données firebase
+
+        // Accéder à la référence Firestore
+        FirebaseFirestore db = FirebaseFirestore.getInstance();
+
+        // Créer un document pour la note
+        DocumentReference noteRef = db.collection("notes").document(title);
+
+        // Enregistrer le contenu de la note dans Firestore
+        Map<String, Object> noteData = new HashMap<>();
+        noteData.put("title", title);
+        noteData.put("content", content);
+
+        // Utiliser set() pour écrire les données dans le document
+        noteRef.set(noteData)
+                .addOnSuccessListener(new OnSuccessListener<Void>() {
+                    @Override
+                    public void onSuccess(Void aVoid) {
+                        // Gérer le succès de l'écriture
+                        if (exit) {
+                            leave();
+                        }
+                    }
+                })
+                .addOnFailureListener(new OnFailureListener() {
+                    @Override
+                    public void onFailure(@NonNull Exception e) {
+                        // Gérer les erreurs d'écriture
+                        Toast.makeText(getApplicationContext(), "Erreur lors de la sauvegarde de la note", Toast.LENGTH_SHORT).show();
+                    }
+                });
+        // Obtenir l'ancien titre de la note avant de le modifier
+        final String oldTitle = mTitleSaved;
+
+        // Obtenir le nouveau titre de la note après la modification
+        final String newTitle = mTitle.getText().toString();
+
+        // Vérifier si le titre a été modifié
+        if (!oldTitle.equals(newTitle)) {
+            // Supprimer le document correspondant à l'ancien titre de la note dans Firebase
+            FirebaseFirestore.getInstance().collection("notes").document(oldTitle)
+                    .delete()
+                    .addOnSuccessListener(new OnSuccessListener<Void>() {
+                        @Override
+                        public void onSuccess(Void aVoid) {
+                            // Document supprimé avec succès
+                            Log.d("01", "Document " + oldTitle + " supprimé avec succès");
+                        }
+                    })
+                    .addOnFailureListener(new OnFailureListener() {
+                        @Override
+                        public void onFailure(@NonNull Exception e) {
+                            // Erreur lors de la suppression du document
+                            Log.w("01", "Erreur lors de la suppression du document " + oldTitle, e);
+                        }
+                    });
+        }
         // Updated saved content
         mTitleSaved = title;
         mContentSaved = content;
