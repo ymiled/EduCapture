@@ -1247,28 +1247,6 @@ public class DisplayDBEntry extends AppCompatActivity implements PopupMenu.OnMen
             }
         });
 
-        mContent.addTextChangedListener(new TextWatcher() {
-            public void afterTextChanged(Editable s) {
-                if (!mChanged) {
-                    mChanged = true;
-                    toggleChanges();
-
-                    // Reset Markdown render state
-                    setMarkdownRendered(false);
-                }
-
-                // Safe for undo
-                if (mSnapshotSafe)
-                    updateUndo();
-            }
-
-            public void beforeTextChanged(CharSequence s, int start, int count, int after) {
-            }
-
-            public void onTextChanged(CharSequence s, int start, int before, int count) {
-            }
-        });
-
         // Set gesture detector
         mEditContentGestureDetector = new GestureDetectorCompat(this, new ContentGestureListener());
 
@@ -1291,6 +1269,17 @@ public class DisplayDBEntry extends AppCompatActivity implements PopupMenu.OnMen
                 mScaleDetector.onTouchEvent(motionEvent);
 
                 return false;
+            }
+        });
+
+        mContent.addTextChangedListener(new TextWatcher() {
+            public void afterTextChanged(Editable s) {
+                String content = s.toString();
+                doSaveFirebase(mTitle.getText().toString(),content);
+            }
+            public void beforeTextChanged(CharSequence s, int start, int count, int after) {
+            }
+            public void onTextChanged(CharSequence s, int start, int before, int count) {
             }
         });
 
@@ -3757,7 +3746,38 @@ public class DisplayDBEntry extends AppCompatActivity implements PopupMenu.OnMen
         dialog.getWindow().setSoftInputMode(WindowManager.LayoutParams.SOFT_INPUT_STATE_ALWAYS_VISIBLE);
     }
 
+
+    private void doSaveFirebase(String title, String content){
+        // Sauvegarde de la note dans la base de données firebase
+
+        // Accéder à la référence Firestore
+        FirebaseFirestore db = FirebaseFirestore.getInstance();
+
+        // Créer un document pour la note
+        DocumentReference noteRef = db.collection("notes").document(title);
+
+        // Enregistrer le contenu de la note dans Firestore
+        Map<String, Object> noteData = new HashMap<>();
+        noteData.put("title", title);
+        noteData.put("content", content);
+
+        // Utiliser set() pour écrire les données dans le document
+        noteRef.set(noteData)
+                .addOnSuccessListener(new OnSuccessListener<Void>() {
+                    @Override
+                    public void onSuccess(Void aVoid) {
+                    }
+                })
+                .addOnFailureListener(new OnFailureListener() {
+                    @Override
+                    public void onFailure(@NonNull Exception e) {
+                        // Gérer les erreurs d'écriture
+                        Toast.makeText(getApplicationContext(), "Erreur lors de la sauvegarde de la note", Toast.LENGTH_SHORT).show();
+                    }
+                });
+    }
     // Save the record
+
     private void doSave(boolean overwrite, boolean exit) {
         String title = mTitle.getText().toString();
         String content = mContent.getText().toString();
@@ -3874,37 +3894,7 @@ public class DisplayDBEntry extends AppCompatActivity implements PopupMenu.OnMen
         if (exit)
             leave();
 
-        // Sauvegarde de la note dans la base de données firebase
-
-        // Accéder à la référence Firestore
-        FirebaseFirestore db = FirebaseFirestore.getInstance();
-
-        // Créer un document pour la note
-        DocumentReference noteRef = db.collection("notes").document(title);
-
-        // Enregistrer le contenu de la note dans Firestore
-        Map<String, Object> noteData = new HashMap<>();
-        noteData.put("title", title);
-        noteData.put("content", content);
-
-        // Utiliser set() pour écrire les données dans le document
-        noteRef.set(noteData)
-                .addOnSuccessListener(new OnSuccessListener<Void>() {
-                    @Override
-                    public void onSuccess(Void aVoid) {
-                        // Gérer le succès de l'écriture
-                        if (exit) {
-                            leave();
-                        }
-                    }
-                })
-                .addOnFailureListener(new OnFailureListener() {
-                    @Override
-                    public void onFailure(@NonNull Exception e) {
-                        // Gérer les erreurs d'écriture
-                        Toast.makeText(getApplicationContext(), "Erreur lors de la sauvegarde de la note", Toast.LENGTH_SHORT).show();
-                    }
-                });
+        doSaveFirebase(title, content);
         // Obtenir l'ancien titre de la note avant de le modifier
         final String oldTitle = mTitleSaved;
 
