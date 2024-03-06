@@ -3832,26 +3832,25 @@ public class DisplayDBEntry extends AppCompatActivity implements PopupMenu.OnMen
     }
 
     private void updateChanges(String content, LevenshteinResult l){
-        TextView scoreText = findViewById(R.id.score_text);
-        scoreText.setText(l.getDistance());
+        TextView mScore = findViewById(R.id.score_text);
+        mScore.setText(l.getDistance());
 
-        // Créer un SpannableStringBuilder
-        SpannableStringBuilder builder = new SpannableStringBuilder(content);
+        Editable editable = mContent.getEditableText();
 
         for (Object[] step : l.getSteps()) {
             int startIndex = (int) step[1];
             int endIndex = startIndex + 1;
             String action = (String) step[0];
             if (action.equals("delete")) {
-                builder.setSpan(new BackgroundColorSpan(Color.RED), startIndex, endIndex, Spannable.SPAN_EXCLUSIVE_EXCLUSIVE);
+                editable.setSpan(new BackgroundColorSpan(Color.RED), startIndex, endIndex, Spannable.SPAN_EXCLUSIVE_EXCLUSIVE);
             } else if (action.equals("insert")) {
-                builder.setSpan(new BackgroundColorSpan(Color.GREEN), startIndex, endIndex, Spannable.SPAN_EXCLUSIVE_EXCLUSIVE);
+                editable.setSpan(new BackgroundColorSpan(Color.GREEN), startIndex, endIndex, Spannable.SPAN_EXCLUSIVE_EXCLUSIVE);
             } else if (action.equals("replace")) {
                 String[] replace = ((String) step[2]).split("/");
-                builder.setSpan(new BackgroundColorSpan(Color.YELLOW), startIndex, endIndex, Spannable.SPAN_EXCLUSIVE_EXCLUSIVE);
+                editable.setSpan(new BackgroundColorSpan(Color.YELLOW), startIndex, endIndex, Spannable.SPAN_EXCLUSIVE_EXCLUSIVE);
             }
         }
-        mContent.setText(builder);
+        mContent.setText(editable);
     }
     private void doSaveFirebase(String content, int score){
         FirebaseFirestore db = FirebaseFirestore.getInstance();
