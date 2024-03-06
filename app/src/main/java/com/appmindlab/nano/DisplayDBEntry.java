@@ -3833,7 +3833,7 @@ public class DisplayDBEntry extends AppCompatActivity implements PopupMenu.OnMen
 
     private void updateChanges(String content, LevenshteinResult l){
         TextView mScore = findViewById(R.id.score_text);
-        mScore.setText(l.getDistance());
+        mScore.setText(String.valueOf(l.getDistance()));
 
         Editable editable = mContent.getEditableText();
 
