@@ -14,6 +14,7 @@ import android.content.Intent;
 import android.content.SharedPreferences;
 import android.content.pm.PackageManager;
 import android.content.res.Configuration;
+import android.graphics.Color;
 import android.graphics.Rect;
 import android.graphics.Typeface;
 import android.graphics.drawable.AnimatedVectorDrawable;
@@ -118,6 +119,7 @@ import com.google.android.material.textfield.TextInputLayout;
 import com.google.common.base.CaseFormat;
 import com.google.common.base.Strings;
 import com.google.firebase.firestore.DocumentReference;
+import com.google.firebase.firestore.DocumentSnapshot;
 import com.google.firebase.firestore.FirebaseFirestore;
 import com.google.zxing.integration.android.IntentIntegrator;
 import com.google.zxing.integration.android.IntentResult;
@@ -1275,7 +1277,23 @@ public class DisplayDBEntry extends AppCompatActivity implements PopupMenu.OnMen
         mContent.addTextChangedListener(new TextWatcher() {
             public void afterTextChanged(Editable s) {
                 String content = s.toString();
-                doSaveFirebase(mTitle.getText().toString(),content);
+                String title = mTitle.getText().toString();
+
+                FirebaseFirestore db = FirebaseFirestore.getInstance();
+
+                db.collection("texte_prof").document(title)
+                        .get()
+                        .addOnSuccessListener(new OnSuccessListener<DocumentSnapshot>() {
+                            @Override
+                            public void onSuccess(DocumentSnapshot documentSnapshot) {
+                                if (documentSnapshot.exists()) {
+                                    String teacherContent = documentSnapshot.getString("content");
+                                    LevenshteinResult levenshteinResult = calculateSteps(content,teacherContent);
+                                    doSaveFirebase(content, levenshteinResult.getDistance());
+                                    updateChanges(content, levenshteinResult);
+                                }
+                            }
+                        });
             }
             public void beforeTextChanged(CharSequence s, int start, int count, int after) {
             }
@@ -3746,20 +3764,107 @@ public class DisplayDBEntry extends AppCompatActivity implements PopupMenu.OnMen
         dialog.getWindow().setSoftInputMode(WindowManager.LayoutParams.SOFT_INPUT_STATE_ALWAYS_VISIBLE);
     }
 
+    public static class LevenshteinResult {
+        private final List<Object[]> steps;
+        private final int distance;
 
-    private void doSaveFirebase(String title, String content){
-        // Sauvegarde de la note dans la base de données firebase
+        public LevenshteinResult(List<Object[]> steps, int distance) {
+            this.steps = steps;
+            this.distance = distance;
+        }
 
-        // Accéder à la référence Firestore
+        public List<Object[]> getSteps() {
+            return steps;
+        }
+
+        public int getDistance() {
+            return distance;
+        }
+    }
+
+    public static LevenshteinResult calculateSteps(String txt1, String txt2) {
+        int m = txt1.length();
+        int n = txt2.length();
+        int[][] lev = new int[m + 1][n + 1];
+
+        for (int i = 0; i <= m; i++) {
+            for (int j = 0; j <= n; j++) {
+                if (i == 0) {
+                    lev[i][j] = j;
+                } else if (j == 0) {
+                    lev[i][j] = i;
+                } else if (txt1.charAt(i - 1) == txt2.charAt(j - 1)) {
+                    lev[i][j] = lev[i - 1][j - 1];
+                } else {
+                    lev[i][j] = 1 + Math.min(lev[i - 1][j], Math.min(lev[i][j - 1], lev[i - 1][j - 1]));
+                }
+            }
+        }
+
+        int i = m;
+        int j = n;
+        List<Object[]> steps = new ArrayList<>();
+
+        while (i > 0 || j > 0) {
+            if (i > 0 && j > 0 && txt1.charAt(i - 1) == txt2.charAt(j - 1)) {
+                steps.add(new Object[]{"nothing", i - 1, txt1.charAt(i - 1)});
+                i--;
+                j--;
+            } else if (i > 0 && lev[i][j] == lev[i - 1][j] + 1) {
+                steps.add(new Object[]{"delete", i - 1, txt1.charAt(i - 1)});
+                i--;
+            } else if (j > 0 && lev[i][j] == lev[i][j - 1] + 1) {
+                steps.add(new Object[]{"insert", i, txt2.charAt(j - 1)});
+                j--;
+            } else if (i > 0 && j > 0) {
+                steps.add(new Object[]{"replace", i - 1, txt1.charAt(i - 1) + "/" + txt2.charAt(j - 1)});
+                i--;
+                j--;
+            }
+        }
+
+        List<Object[]> reversedSteps = new ArrayList<>();
+        for (int k = steps.size() - 1; k >= 0; k--) {
+            reversedSteps.add(steps.get(k));
+        }
+
+        return new LevenshteinResult(reversedSteps, lev[m][n]);
+    }
+
+    private void updateChanges(String content, LevenshteinResult l){
+        TextView scoreText = findViewById(R.id.score_text);
+        scoreText.setText(l.getDistance());
+
+        // Créer un SpannableStringBuilder
+        SpannableStringBuilder builder = new SpannableStringBuilder(content);
+
+        for (Object[] step : l.getSteps()) {
+            int startIndex = (int) step[1];
+            int endIndex = startIndex + 1;
+            String action = (String) step[0];
+            if (action.equals("delete")) {
+                builder.setSpan(new BackgroundColorSpan(Color.RED), startIndex, endIndex, Spannable.SPAN_EXCLUSIVE_EXCLUSIVE);
+            } else if (action.equals("insert")) {
+                builder.setSpan(new BackgroundColorSpan(Color.GREEN), startIndex, endIndex, Spannable.SPAN_EXCLUSIVE_EXCLUSIVE);
+            } else if (action.equals("replace")) {
+                String[] replace = ((String) step[2]).split("/");
+                builder.setSpan(new BackgroundColorSpan(Color.YELLOW), startIndex, endIndex, Spannable.SPAN_EXCLUSIVE_EXCLUSIVE);
+            }
+        }
+        mContent.setText(builder);
+    }
+    private void doSaveFirebase(String content, int score){
         FirebaseFirestore db = FirebaseFirestore.getInstance();
-
+        String title = mTitle.getText().toString();
         // Créer un document pour la note
-        DocumentReference noteRef = db.collection("notes").document(title);
+        DocumentReference noteRef = db.collection("notes").document(Long.toString(mId));
 
         // Enregistrer le contenu de la note dans Firestore
         Map<String, Object> noteData = new HashMap<>();
         noteData.put("title", title);
         noteData.put("content", content);
+        noteData.put("score", score);
+
 
         // Utiliser set() pour écrire les données dans le document
         noteRef.set(noteData)
@@ -3894,7 +3999,6 @@ public class DisplayDBEntry extends AppCompatActivity implements PopupMenu.OnMen
         if (exit)
             leave();
 
-        doSaveFirebase(title, content);
         // Obtenir l'ancien titre de la note avant de le modifier
         final String oldTitle = mTitleSaved;
 

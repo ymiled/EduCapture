@@ -22,16 +22,18 @@
             android:background="?attr/colorPrimary">
         </androidx.appcompat.widget.Toolbar>
 
-        <RelativeLayout
+        <LinearLayout
             android:id="@+id/title_bar"
             android:layout_width="match_parent"
-            android:layout_height="wrap_content">
+            android:layout_height="wrap_content"
+            android:orientation="horizontal">
 
             <EditText
                 android:id="@+id/edit_title"
                 android:hint="@string/hint_title"
-                android:layout_width="match_parent"
+                android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
+                android:layout_weight="1"
                 android:layout_marginTop="0dp"
                 android:layout_marginBottom="0dp"
                 android:layout_marginLeft="0dp"
@@ -47,6 +49,12 @@
                 android:textColor="@android:color/black"
                 android:importantForAutofill="no"
                 android:imeOptions="actionDone|flagNoExtractUi" />
+
+            <TextView
+                android:id="@+id/score_text"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:textColor="@android:color/black" />
 
             <TextView
                 android:id="@+id/status_bar"
@@ -79,7 +87,7 @@
                 android:indeterminateTint="@color/io_progress_bar_background"
                 android:visibility="gone" />
 
-        </RelativeLayout>
+        </LinearLayout>
 
         <ScrollView
             android:id="@+id/edit_scrollview"
