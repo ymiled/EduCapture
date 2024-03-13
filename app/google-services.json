@@ -7,28 +7,9 @@
   "client": [
     {
       "client_info": {
-        "mobilesdk_app_id": "1:1009173315184:android:cc44f265cc34aae6607eb5",
+        "mobilesdk_app_id": "1:1009173315184:android:4a159e914ae200d1607eb5",
         "android_client_info": {
-          "package_name": "com.example.pe_test"
-        }
-      },
-      "oauth_client": [],
-      "api_key": [
-        {
-          "current_key": "AIzaSyBiCxih6OvxL-QtvPHeIAkYehYM9amq7KI"
-        }
-      ],
-      "services": {
-        "appinvite_service": {
-          "other_platform_oauth_client": []
-        }
-      }
-    },
-    {
-      "client_info": {
-        "mobilesdk_app_id": "1:1009173315184:android:71910ebe05d2da5b607eb5",
-        "android_client_info": {
-          "package_name": "com.martin.pe_test"
+          "package_name": "com.appmindlab.nano"
         }
       },
       "oauth_client": [],

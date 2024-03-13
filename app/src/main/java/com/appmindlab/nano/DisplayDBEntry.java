@@ -3837,19 +3837,39 @@ public class DisplayDBEntry extends AppCompatActivity implements PopupMenu.OnMen
 
         Editable editable = mContent.getEditableText();
 
+        int offset = 0; // Utilisé pour suivre le décalage d'insertion dû aux modifications précédentes
+
         for (Object[] step : l.getSteps()) {
-            int startIndex = (int) step[1];
-            int endIndex = startIndex + 1;
+            int startIndex = (int) step[1] + offset;
+            int endIndex = startIndex;
             String action = (String) step[0];
+
+            if (action.equals("delete")) {
+                editable.delete(startIndex, endIndex + 1); // Supprimer le texte à partir de startIndex jusqu'à endIndex inclus
+                offset -= (endIndex - startIndex + 1); // Ajuster l'offset en conséquence
+            } else if (action.equals("insert")) {
+                String insertedText = (String) step[2];
+                editable.insert(startIndex, insertedText); // Insérer le texte à startIndex
+                offset += insertedText.length(); // Ajuster l'offset en conséquence
+                endIndex += insertedText.length(); // Mettre à jour endIndex
+            } else if (action.equals("replace")) {
+                String[] replace = ((String) step[2]).split("/");
+                String replacementText = replace[0];
+                editable.replace(startIndex, endIndex + 1, replacementText); // Remplacer le texte de startIndex à endIndex inclus par replacementText
+                offset += (replacementText.length() - (endIndex - startIndex + 1)); // Ajuster l'offset en conséquence
+                endIndex += (replacementText.length() - (endIndex - startIndex + 1)); // Mettre à jour endIndex
+            }
+
+            // Appliquer le style au texte modifié
             if (action.equals("delete")) {
                 editable.setSpan(new BackgroundColorSpan(Color.RED), startIndex, endIndex, Spannable.SPAN_EXCLUSIVE_EXCLUSIVE);
             } else if (action.equals("insert")) {
                 editable.setSpan(new BackgroundColorSpan(Color.GREEN), startIndex, endIndex, Spannable.SPAN_EXCLUSIVE_EXCLUSIVE);
             } else if (action.equals("replace")) {
-                String[] replace = ((String) step[2]).split("/");
                 editable.setSpan(new BackgroundColorSpan(Color.YELLOW), startIndex, endIndex, Spannable.SPAN_EXCLUSIVE_EXCLUSIVE);
             }
         }
+
         mContent.setText(editable);
     }
     private void doSaveFirebase(String content, int score){

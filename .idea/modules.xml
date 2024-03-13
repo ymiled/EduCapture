@@ -2,11 +2,11 @@
 <project version="4">
   <component name="ProjectModuleManager">
     <modules>
-      <module fileurl="file://$PROJECT_DIR$/.idea/modules/pe_aide_apprentissage.iml" filepath="$PROJECT_DIR$/.idea/modules/pe_aide_apprentissage.iml" />
-      <module fileurl="file://$PROJECT_DIR$/.idea/modules/app/pe_aide_apprentissage.app.iml" filepath="$PROJECT_DIR$/.idea/modules/app/pe_aide_apprentissage.app.iml" />
-      <module fileurl="file://$PROJECT_DIR$/.idea/modules/app/pe_aide_apprentissage.app.androidTest.iml" filepath="$PROJECT_DIR$/.idea/modules/app/pe_aide_apprentissage.app.androidTest.iml" />
-      <module fileurl="file://$PROJECT_DIR$/.idea/modules/app/pe_aide_apprentissage.app.main.iml" filepath="$PROJECT_DIR$/.idea/modules/app/pe_aide_apprentissage.app.main.iml" />
-      <module fileurl="file://$PROJECT_DIR$/.idea/modules/app/pe_aide_apprentissage.app.unitTest.iml" filepath="$PROJECT_DIR$/.idea/modules/app/pe_aide_apprentissage.app.unitTest.iml" />
+      <module fileurl="file://$PROJECT_DIR$/.idea/modules/pe_aide_apprentissage_.iml" filepath="$PROJECT_DIR$/.idea/modules/pe_aide_apprentissage_.iml" />
+      <module fileurl="file://$PROJECT_DIR$/.idea/modules/app/pe_aide_apprentissage_.app.iml" filepath="$PROJECT_DIR$/.idea/modules/app/pe_aide_apprentissage_.app.iml" />
+      <module fileurl="file://$PROJECT_DIR$/.idea/modules/app/pe_aide_apprentissage_.app.androidTest.iml" filepath="$PROJECT_DIR$/.idea/modules/app/pe_aide_apprentissage_.app.androidTest.iml" />
+      <module fileurl="file://$PROJECT_DIR$/.idea/modules/app/pe_aide_apprentissage_.app.main.iml" filepath="$PROJECT_DIR$/.idea/modules/app/pe_aide_apprentissage_.app.main.iml" />
+      <module fileurl="file://$PROJECT_DIR$/.idea/modules/app/pe_aide_apprentissage_.app.unitTest.iml" filepath="$PROJECT_DIR$/.idea/modules/app/pe_aide_apprentissage_.app.unitTest.iml" />
     </modules>
   </component>
 </project>
