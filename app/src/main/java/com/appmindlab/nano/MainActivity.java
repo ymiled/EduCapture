@@ -51,6 +51,7 @@ import android.view.animation.AnimationUtils;
 import android.view.inputmethod.EditorInfo;
 import android.widget.ArrayAdapter;
 import android.widget.AutoCompleteTextView;
+import android.widget.CheckBox;
 import android.widget.EditText;
 import android.widget.LinearLayout;
 import android.widget.NumberPicker;
@@ -1443,6 +1444,7 @@ public class MainActivity extends AppCompatActivity implements View.OnClickListe
 
     // View a note
     protected void viewNote(long id) {
+
         Intent launchIntent = new Intent(this, DisplayDBEntry.class);
         launchIntent.putExtra(Const.EXTRA_ID, id);
 
@@ -3664,6 +3666,7 @@ public class MainActivity extends AppCompatActivity implements View.OnClickListe
 
     // Add new note
     private void doAdd() {
+
         Intent intent = new Intent(getApplication(), DisplayDBEntry.class);
         intent.putExtra(Const.EXTRA_ID, -1L);
 
