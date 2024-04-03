@@ -154,6 +154,8 @@ import java.util.regex.Pattern;
 import static com.appmindlab.nano.R.layout.canvas;
 import static com.appmindlab.nano.Utils.makeFileName;
 
+import java.util.ArrayList;
+import java.util.List;
 /**
  * Created by saelim on 6/24/2015.
  */
@@ -320,6 +322,14 @@ public class DisplayDBEntry extends AppCompatActivity implements PopupMenu.OnMen
 
     private Boolean teacher = false;
 
+    private long mPauseStartTime;
+    private long mPauseTime;
+    private long mTotalPauseTime;
+
+    // when the students does not write anything for mDeconcentrationThreshold seconds we consider it
+    // as deconcentration.
+    private int mDeconcentrationThreshold = 2;
+
     // Misc.
     protected static DisplayDBEntry display_dbentry;
 
@@ -427,6 +437,9 @@ public class DisplayDBEntry extends AppCompatActivity implements PopupMenu.OnMen
 
         initiateText();
 
+        mPauseStartTime = 0;
+
+
         if (teacher) {
             FirebaseFirestore db = FirebaseFirestore.getInstance();
             String title = mTitle.getText().toString();
@@ -485,6 +498,8 @@ public class DisplayDBEntry extends AppCompatActivity implements PopupMenu.OnMen
 
         // Reset auto theme application state
         mAutoThemeApplied = false;
+
+        mPauseStartTime = System.currentTimeMillis();
     }
 
     @Override
@@ -561,6 +576,40 @@ public class DisplayDBEntry extends AppCompatActivity implements PopupMenu.OnMen
             // Deactivate clipboard monitor
             mClipboardMonitor = false;
         }
+        if(mPauseStartTime != 0){
+            mPauseStartTime = 0; // resetting pause time to zero
+            long pauseEndTime = System.currentTimeMillis();
+            mPauseTime = pauseEndTime - mPauseStartTime;
+            mTotalPauseTime += mPauseTime;
+            TextView pauseTimeTextView = findViewById(R.id.pause_time_text);
+            pauseTimeTextView.setText("Temps de déconcentration : " + formatPauseTime(mPauseTime));
+
+            TextView totalPauseTimeTextView = findViewById(R.id.total_pause_time_text);
+            totalPauseTimeTextView.setText("Temps de déconcentration global : " + formatPauseTime(mTotalPauseTime));
+
+            if(mPauseTime >= mDeconcentrationThreshold){
+                // Alert: Pause time exceeds the threshold
+                // Change the background color of the alert layout to red
+                RelativeLayout deconcentrationAlertLayout = findViewById(R.id.deconcentration_alert_layout);
+                deconcentrationAlertLayout.setBackgroundColor(Color.RED);
+                // Change the text color of the pause_time_text TextView to red
+                pauseTimeTextView.setTextColor(Color.RED);
+                TextView deconcentrationText = findViewById(R.id.deconcetration_text);
+                deconcentrationText.setText("Déconcentration !");
+            }
+
+        }
+
+    }
+
+    // Helper method to format the pause time in the HH:mm:ss format
+    private String formatPauseTime(long totalPauseTime) {
+        // Convert milliseconds to hours, minutes, and seconds
+        long seconds = totalPauseTime / 1000 % 60;
+        long minutes = totalPauseTime / (1000 * 60) % 60;
+        long hours = totalPauseTime / (1000 * 60 * 60);
+        // Format the time as HH:mm:ss
+        return String.format("%02d:%02d:%02d", hours, minutes, seconds);
     }
 
     @Override
@@ -1312,6 +1361,7 @@ public class DisplayDBEntry extends AppCompatActivity implements PopupMenu.OnMen
         });
 
         mContent.addTextChangedListener(new TextWatcher() {
+
             public void afterTextChanged(Editable s) {
 
                 String content = s.toString();

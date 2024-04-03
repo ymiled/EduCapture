@@ -193,4 +193,6 @@
     <color name="text_color_primary_day">#1D282E</color>
     <color name="text_color_primary_lux">#FFFFFF</color>
     <color name="text_color_primary_oled">#FFFFFF</color>
+
+    <color name="default_alert_color">#EC2214</color>
 </resources>
