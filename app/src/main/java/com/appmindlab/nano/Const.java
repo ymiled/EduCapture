@@ -19,6 +19,8 @@ public class Const {
     protected final static String EXTRA_ID = "com.appmindlab.nano.ID";
     protected final static String EXTRA_CRITERIA = "com.appmindlab.nano.criteria";
     protected final static String EXTRA_TITLE = "com.appmindlab.nano.title";
+    protected final static String EXTRA_TEACHER = "com.appmindlab.nano.teacher";
+
     protected final static String EXTRA_CONTENT = "com.appmindlab.nano.content";
     protected final static String EXTRA_SHARED_CONTENT = "com.appmindlab.nano.shared_content";
 
