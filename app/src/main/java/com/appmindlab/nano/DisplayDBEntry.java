@@ -75,7 +75,6 @@ import android.webkit.WebViewClient;
 import android.widget.ArrayAdapter;
 import android.widget.AutoCompleteTextView;
 import android.widget.Button;
-import android.widget.CheckBox;
 import android.widget.EditText;
 import android.widget.FrameLayout;
 import android.widget.LinearLayout;
@@ -149,7 +148,6 @@ import java.util.LinkedList;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
-import java.util.Objects;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
@@ -320,8 +318,7 @@ public class DisplayDBEntry extends AppCompatActivity implements PopupMenu.OnMen
     // Image
     private Uri mTmpImageUri = null;
 
-    private static Boolean teacher = false;
-    private boolean isUserTyping = true;
+    private Boolean teacher = false;
 
     // Misc.
     protected static DisplayDBEntry display_dbentry;
@@ -441,12 +438,11 @@ public class DisplayDBEntry extends AppCompatActivity implements PopupMenu.OnMen
                     float score = 0;
                     int i = 0;
                     for (DocumentSnapshot doc : queryDocumentSnapshots) {
-                        float doc_score = doc.getLong("score");
+                        String doc_score = doc.getString("score");
                         String doc_title = doc.getString("title");
 
-
-                        if (Objects.equals(doc_title, title)){
-                            score += doc_score;
+                        if (doc_title == title){
+                            score += Float.parseFloat(doc_score);
                             i += 1;
                         }
                     }
@@ -965,12 +961,6 @@ public class DisplayDBEntry extends AppCompatActivity implements PopupMenu.OnMen
         setSupportActionBar(mToolBar);
         getSupportActionBar().setDisplayHomeAsUpEnabled(true);
         getSupportActionBar().setHomeButtonEnabled(true);
-
-        if (teacher){
-            findViewById(R.id.alert_layout).setVisibility(View.VISIBLE);
-        } else {
-            findViewById(R.id.alert_layout).setVisibility(View.GONE);
-        }
     }
 
     // Setup status bar
@@ -1323,46 +1313,45 @@ public class DisplayDBEntry extends AppCompatActivity implements PopupMenu.OnMen
 
         mContent.addTextChangedListener(new TextWatcher() {
             public void afterTextChanged(Editable s) {
-                if (isUserTyping){
-                    String content = s.toString();
-                    String title = mTitle.getText().toString();
-                    FirebaseFirestore db = FirebaseFirestore.getInstance();
 
-                    if (!teacher){
-                        db.collection("texte_prof").document(title)
-                                .get()
-                                .addOnSuccessListener(new OnSuccessListener<DocumentSnapshot>() {
-                                    @Override
-                                    public void onSuccess(DocumentSnapshot documentSnapshot) {
-                                        if (documentSnapshot.exists()) {
-                                            String teacherContent = documentSnapshot.getString("content");
-                                            LevenshteinResult levenshteinResult = calculateSteps(content,teacherContent);
-                                            doSaveFirebase(content, levenshteinResult);
-                                            updateChanges(content, levenshteinResult);
-                                        }
-                                    }
-                                });
-                    } else {
-                        DocumentReference noteRef = db.collection("texte_prof").document(title);
+                String content = s.toString();
+                String title = mTitle.getText().toString();
+                FirebaseFirestore db = FirebaseFirestore.getInstance();
 
-                        Map<String, Object> noteData = new HashMap<>();
-                        noteData.put("title", title);
-                        noteData.put("content", content);
+                if (teacher){
+                    db.collection("texte_prof").document(title)
+                            .get()
+                            .addOnSuccessListener(new OnSuccessListener<DocumentSnapshot>() {
+                                @Override
+                                public void onSuccess(DocumentSnapshot documentSnapshot) {
+                                    if (documentSnapshot.exists()) {
+                                        String teacherContent = documentSnapshot.getString("content");
+                                        LevenshteinResult levenshteinResult = calculateSteps(content,teacherContent);
+                                        doSaveFirebase(content, levenshteinResult.getDistance());
+                                        updateChanges(content, levenshteinResult);
+                                    }
+                                }
+                            });
+                } else {
+                    DocumentReference noteRef = db.collection("texte_prof").document(title);
 
-                        noteRef.set(noteData)
-                                .addOnSuccessListener(new OnSuccessListener<Void>() {
-                                    @Override
-                                    public void onSuccess(Void aVoid) {
-                                    }
-                                })
-                                .addOnFailureListener(new OnFailureListener() {
-                                    @Override
-                                    public void onFailure(@NonNull Exception e) {
-                                        // Gérer les erreurs d'écriture
-                                        Toast.makeText(getApplicationContext(), "Erreur lors de la sauvegarde de la note", Toast.LENGTH_SHORT).show();
-                                    }
-                                });
-                    }
+                    Map<String, Object> noteData = new HashMap<>();
+                    noteData.put("title", title);
+                    noteData.put("content", content);
+
+                    noteRef.set(noteData)
+                            .addOnSuccessListener(new OnSuccessListener<Void>() {
+                                @Override
+                                public void onSuccess(Void aVoid) {
+                                }
+                            })
+                            .addOnFailureListener(new OnFailureListener() {
+                                @Override
+                                public void onFailure(@NonNull Exception e) {
+                                    // Gérer les erreurs d'écriture
+                                    Toast.makeText(getApplicationContext(), "Erreur lors de la sauvegarde de la note", Toast.LENGTH_SHORT).show();
+                                }
+                            });
                 }
             }
             public void beforeTextChanged(CharSequence s, int start, int count, int after) {
@@ -3884,6 +3873,7 @@ public class DisplayDBEntry extends AppCompatActivity implements PopupMenu.OnMen
 
         while (i > 0 || j > 0) {
             if (i > 0 && j > 0 && txt1.charAt(i - 1) == txt2.charAt(j - 1)) {
+                steps.add(new Object[]{"nothing", i - 1, txt1.charAt(i - 1)});
                 i--;
                 j--;
             } else if (i > 0 && lev[i][j] == lev[i - 1][j] + 1) {
@@ -3904,9 +3894,8 @@ public class DisplayDBEntry extends AppCompatActivity implements PopupMenu.OnMen
             reversedSteps.add(steps.get(k));
         }
 
-        float score = (float) lev[m][n] / Math.max(txt1.length(), txt2.length());
-        float roundedScore = (float) (Math.round(score * 100.0) / 100.0);
-        return new LevenshteinResult(reversedSteps, lev[m][n], roundedScore);
+        float score = lev[m][n] / Math.max(txt1.length(), txt2.length());
+        return new LevenshteinResult(reversedSteps, lev[m][n], score);
     }
 
     private void updateChanges(String content, LevenshteinResult l) {
@@ -3916,32 +3905,24 @@ public class DisplayDBEntry extends AppCompatActivity implements PopupMenu.OnMen
 
         Editable editable = mContent.getEditableText();
 
-        int cursorPosition = mContent.getSelectionStart();
-        List<Object> indexes = new ArrayList<>();
         for (Object[] step : l.getSteps()) {
             int startIndex = (int) step[1];
-            if (!indexes.contains(startIndex) && startIndex < editable.length() - 1) {
-                indexes.add(startIndex);
-                String action = (String) step[0];
-                // Appliquer le style au texte modifié
-                if (startIndex + 1 < editable.length()) { // Vérifier si la longueur du texte est nulle
-                    if (action.equals("delete")) {
-                        editable.setSpan(new BackgroundColorSpan(Color.RED), startIndex, startIndex + 1, Spannable.SPAN_EXCLUSIVE_EXCLUSIVE);
-                    } else if (action.equals("insert")) {
-                        editable.setSpan(new BackgroundColorSpan(Color.GREEN), startIndex, startIndex + 1, Spannable.SPAN_EXCLUSIVE_EXCLUSIVE);
-                    } else if (action.equals("replace")) {
-                        editable.setSpan(new BackgroundColorSpan(Color.YELLOW), startIndex, startIndex + 1, Spannable.SPAN_EXCLUSIVE_EXCLUSIVE);
-                    }
+            String action = (String) step[0];
+            // Appliquer le style au texte modifié
+            if (startIndex + 1 < editable.length()) { // Vérifier si la longueur du texte est nulle
+                if (action.equals("delete")) {
+                    editable.setSpan(new BackgroundColorSpan(Color.RED), startIndex, startIndex + 1, Spannable.SPAN_EXCLUSIVE_EXCLUSIVE);
+                } else if (action.equals("insert")) {
+                    editable.setSpan(new BackgroundColorSpan(Color.GREEN), startIndex, startIndex + 1, Spannable.SPAN_EXCLUSIVE_EXCLUSIVE);
+                } else if (action.equals("replace")) {
+                    editable.setSpan(new BackgroundColorSpan(Color.YELLOW), startIndex, startIndex + 1, Spannable.SPAN_EXCLUSIVE_EXCLUSIVE);
                 }
             }
         }
-        isUserTyping = false;
+
         mContent.setText(editable);
-        if (cursorPosition <= editable.length()) {
-            mContent.setSelection(cursorPosition);
-        }
-        isUserTyping = true;
     }
+
 
     private void initiateText(){
         if (!teacher){
@@ -3965,29 +3946,18 @@ public class DisplayDBEntry extends AppCompatActivity implements PopupMenu.OnMen
         }
     }
 
-    private void doSaveFirebase(String content, LevenshteinResult levenshteinResult){
+    private void doSaveFirebase(String content, int score){
         FirebaseFirestore db = FirebaseFirestore.getInstance();
         String title = mTitle.getText().toString();
-
+        // Créer un document pour la note
         DocumentReference noteRef = db.collection("notes").document(Long.toString(mId));
 
-        List<Map<String, Object>> steps = new ArrayList<>();
-        List<Object> indexes = new ArrayList<>();
-        for (Object[] step : levenshteinResult.getSteps()) {
-            if (!step[0].equals("nothing") && !indexes.contains(step[1])) {
-                Map<String, Object> stepMap = new HashMap<>();
-                stepMap.put("action", step[0]);
-                stepMap.put("index", step[1]);
-                steps.add(stepMap);
-                indexes.add(step[1]);
-            }
-        }
-
+        // Enregistrer le contenu de la note dans Firestore
         Map<String, Object> noteData = new HashMap<>();
         noteData.put("title", title);
         noteData.put("content", content);
-        noteData.put("score", levenshteinResult.getScore());
-        noteData.put("steps", steps);
+        noteData.put("score", score);
+
 
         // Utiliser set() pour écrire les données dans le document
         noteRef.set(noteData)

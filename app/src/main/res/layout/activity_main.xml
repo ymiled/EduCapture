@@ -33,7 +33,6 @@
                     android:background="?attr/colorPrimary"
                     app:layout_scrollFlags="scroll|enterAlways" />
 
-
                 <RelativeLayout
                     android:id="@+id/status_bar"
                     android:layout_width="match_parent"
