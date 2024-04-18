@@ -90,14 +90,7 @@
                 android:indeterminateTint="@color/io_progress_bar_background"
                 android:visibility="gone" />
 
-
-
         </RelativeLayout>
-
-        <RelativeLayout
-            android:id="@+id/alert_layout"
-            android:layout_width="match_parent"
-            android:layout_height="40dp" />
 
         <androidx.core.widget.NestedScrollView
             android:layout_width="match_parent"

@@ -120,10 +120,7 @@ import com.google.common.base.CaseFormat;
 import com.google.common.base.Strings;
 import com.google.firebase.firestore.DocumentReference;
 import com.google.firebase.firestore.DocumentSnapshot;
-import com.google.firebase.firestore.EventListener;
 import com.google.firebase.firestore.FirebaseFirestore;
-import com.google.firebase.firestore.FirebaseFirestoreException;
-import com.google.firebase.firestore.QuerySnapshot;
 import com.google.zxing.integration.android.IntentIntegrator;
 import com.google.zxing.integration.android.IntentResult;
 
@@ -318,8 +315,6 @@ public class DisplayDBEntry extends AppCompatActivity implements PopupMenu.OnMen
     // Image
     private Uri mTmpImageUri = null;
 
-    private Boolean teacher = false;
-
     // Misc.
     protected static DisplayDBEntry display_dbentry;
 
@@ -425,38 +420,7 @@ public class DisplayDBEntry extends AppCompatActivity implements PopupMenu.OnMen
         // Apply hacks
         applyHacks();
 
-        initiateText();
-
-        if (teacher) {
-            FirebaseFirestore db = FirebaseFirestore.getInstance();
-            String title = mTitle.getText().toString();
-            db.collection("notes").addSnapshotListener(new EventListener<QuerySnapshot>() {
-                public void onEvent(QuerySnapshot queryDocumentSnapshots, FirebaseFirestoreException e) {
-                    if (e != null) {
-                        return;
-                    }
-                    float score = 0;
-                    int i = 0;
-                    for (DocumentSnapshot doc : queryDocumentSnapshots) {
-                        String doc_score = doc.getString("score");
-                        String doc_title = doc.getString("title");
-
-                        if (doc_title == title){
-                            score += Float.parseFloat(doc_score);
-                            i += 1;
-                        }
-                    }
-                    score = score / i; //a débattre
-                    if (score > 0.1) {
-                        RelativeLayout alertLayout = findViewById(R.id.alert_layout);
-                        alertLayout.setBackgroundColor(Color.RED);
-                    }
-                }
-            });
-        }
     }
-
-
 
     @Override
     protected void onPause() {
@@ -1313,46 +1277,24 @@ public class DisplayDBEntry extends AppCompatActivity implements PopupMenu.OnMen
 
         mContent.addTextChangedListener(new TextWatcher() {
             public void afterTextChanged(Editable s) {
-
                 String content = s.toString();
                 String title = mTitle.getText().toString();
+
                 FirebaseFirestore db = FirebaseFirestore.getInstance();
 
-                if (teacher){
-                    db.collection("texte_prof").document(title)
-                            .get()
-                            .addOnSuccessListener(new OnSuccessListener<DocumentSnapshot>() {
-                                @Override
-                                public void onSuccess(DocumentSnapshot documentSnapshot) {
-                                    if (documentSnapshot.exists()) {
-                                        String teacherContent = documentSnapshot.getString("content");
-                                        LevenshteinResult levenshteinResult = calculateSteps(content,teacherContent);
-                                        doSaveFirebase(content, levenshteinResult.getDistance());
-                                        updateChanges(content, levenshteinResult);
-                                    }
+                db.collection("texte_prof").document(title)
+                        .get()
+                        .addOnSuccessListener(new OnSuccessListener<DocumentSnapshot>() {
+                            @Override
+                            public void onSuccess(DocumentSnapshot documentSnapshot) {
+                                if (documentSnapshot.exists()) {
+                                    String teacherContent = documentSnapshot.getString("content");
+                                    LevenshteinResult levenshteinResult = calculateSteps(content,teacherContent);
+                                    doSaveFirebase(content, levenshteinResult.getDistance());
+                                    updateChanges(content, levenshteinResult);
                                 }
-                            });
-                } else {
-                    DocumentReference noteRef = db.collection("texte_prof").document(title);
-
-                    Map<String, Object> noteData = new HashMap<>();
-                    noteData.put("title", title);
-                    noteData.put("content", content);
-
-                    noteRef.set(noteData)
-                            .addOnSuccessListener(new OnSuccessListener<Void>() {
-                                @Override
-                                public void onSuccess(Void aVoid) {
-                                }
-                            })
-                            .addOnFailureListener(new OnFailureListener() {
-                                @Override
-                                public void onFailure(@NonNull Exception e) {
-                                    // Gérer les erreurs d'écriture
-                                    Toast.makeText(getApplicationContext(), "Erreur lors de la sauvegarde de la note", Toast.LENGTH_SHORT).show();
-                                }
-                            });
-                }
+                            }
+                        });
             }
             public void beforeTextChanged(CharSequence s, int start, int count, int after) {
             }
@@ -3829,12 +3771,9 @@ public class DisplayDBEntry extends AppCompatActivity implements PopupMenu.OnMen
         private final List<Object[]> steps;
         private final int distance;
 
-        private final float score;
-
-        public LevenshteinResult(List<Object[]> steps, int distance, float score) {
+        public LevenshteinResult(List<Object[]> steps, int distance) {
             this.steps = steps;
             this.distance = distance;
-            this.score = score;
         }
 
         public List<Object[]> getSteps() {
@@ -3844,8 +3783,6 @@ public class DisplayDBEntry extends AppCompatActivity implements PopupMenu.OnMen
         public int getDistance() {
             return distance;
         }
-
-        public float getScore() {return score;}
     }
 
     public static LevenshteinResult calculateSteps(String txt1, String txt2) {
@@ -3894,14 +3831,12 @@ public class DisplayDBEntry extends AppCompatActivity implements PopupMenu.OnMen
             reversedSteps.add(steps.get(k));
         }
 
-        float score = lev[m][n] / Math.max(txt1.length(), txt2.length());
-        return new LevenshteinResult(reversedSteps, lev[m][n], score);
+        return new LevenshteinResult(reversedSteps, lev[m][n]);
     }
 
     private void updateChanges(String content, LevenshteinResult l) {
         TextView mScore = findViewById(R.id.score_text);
-
-        mScore.setText(String.valueOf(l.getScore()));
+        mScore.setText(String.valueOf(l.getDistance()));
 
         Editable editable = mContent.getEditableText();
 
@@ -3925,25 +3860,23 @@ public class DisplayDBEntry extends AppCompatActivity implements PopupMenu.OnMen
 
 
     private void initiateText(){
-        if (!teacher){
-            String content = mContent.getText().toString();
-            String title = mTitle.getText().toString();
+        String content = mContent.getText().toString();
+        String title = mTitle.getText().toString();
 
-            FirebaseFirestore db = FirebaseFirestore.getInstance();
+        FirebaseFirestore db = FirebaseFirestore.getInstance();
 
-            db.collection("texte_prof").document(title)
-                    .get()
-                    .addOnSuccessListener(new OnSuccessListener<DocumentSnapshot>() {
-                        @Override
-                        public void onSuccess(DocumentSnapshot documentSnapshot) {
-                            if (documentSnapshot.exists()) {
-                                String teacherContent = documentSnapshot.getString("content");
-                                LevenshteinResult levenshteinResult = calculateSteps(content,teacherContent);
-                                updateChanges(content, levenshteinResult);
-                            }
+        db.collection("texte_prof").document(title)
+                .get()
+                .addOnSuccessListener(new OnSuccessListener<DocumentSnapshot>() {
+                    @Override
+                    public void onSuccess(DocumentSnapshot documentSnapshot) {
+                        if (documentSnapshot.exists()) {
+                            String teacherContent = documentSnapshot.getString("content");
+                            LevenshteinResult levenshteinResult = calculateSteps(content,teacherContent);
+                            updateChanges(content, levenshteinResult);
                         }
-                    });
-        }
+                    }
+                });
     }
 
     private void doSaveFirebase(String content, int score){
