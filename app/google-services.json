@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "1009173315184",
+    "project_id": "pe-centrale",
+    "storage_bucket": "pe-centrale.appspot.com"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:1009173315184:android:4a159e914ae200d1607eb5",
+        "android_client_info": {
+          "package_name": "com.appmindlab.nano"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyBiCxih6OvxL-QtvPHeIAkYehYM9amq7KI"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
