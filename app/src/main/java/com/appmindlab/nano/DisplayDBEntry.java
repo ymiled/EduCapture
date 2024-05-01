@@ -119,6 +119,7 @@ import com.google.android.material.snackbar.Snackbar;
 import com.google.android.material.textfield.TextInputLayout;
 import com.google.common.base.CaseFormat;
 import com.google.common.base.Strings;
+import com.google.firebase.firestore.CollectionReference;
 import com.google.firebase.firestore.DocumentReference;
 import com.google.firebase.firestore.DocumentSnapshot;
 import com.google.firebase.firestore.EventListener;
@@ -325,16 +326,15 @@ public class DisplayDBEntry extends AppCompatActivity implements PopupMenu.OnMen
     private static Boolean teacher = false;
     private boolean isUserTyping = true;
 
-    private long mPauseStartTime;
-    private long mPauseTime;
-    private long mTotalPauseTime;
-
-    // when the students does not write anything for mDeconcentrationThreshold seconds we consider it
-    // as deconcentration.
-    private int mDeconcentrationThreshold = 2;
-
     // Misc.
     protected static DisplayDBEntry display_dbentry;
+
+    private long startTime;  // storing the time when user starts typing
+    private int previousLength = 0;  // storing the previous character count
+
+    private int writingSpeed = 0;
+    private TextView writingSpeedTextView;
+
 
     // Get content
     protected EditText getContent() {
@@ -440,8 +440,7 @@ public class DisplayDBEntry extends AppCompatActivity implements PopupMenu.OnMen
 
         initiateText();
 
-        mPauseStartTime = 0;
-
+        // Initialize UI elements
 
         if (teacher) {
             FirebaseFirestore db = FirebaseFirestore.getInstance();
@@ -471,6 +470,19 @@ public class DisplayDBEntry extends AppCompatActivity implements PopupMenu.OnMen
                 }
             });
         }
+        // Speed calculation
+        startTime = System.currentTimeMillis();
+        previousLength = mContent.getText().toString().length();
+
+        writingSpeedTextView = findViewById(R.id.writing_speed_text);
+        writingSpeedTextView.setText("Vitesse: " + " car/sec");
+
+
+    }
+
+    @Override
+    public boolean onTouchEvent(MotionEvent event) {
+        return super.onTouchEvent(event);
     }
 
 
@@ -503,7 +515,6 @@ public class DisplayDBEntry extends AppCompatActivity implements PopupMenu.OnMen
         // Reset auto theme application state
         mAutoThemeApplied = false;
 
-        mPauseStartTime = System.currentTimeMillis();
     }
 
     @Override
@@ -528,7 +539,6 @@ public class DisplayDBEntry extends AppCompatActivity implements PopupMenu.OnMen
     @Override
     protected void onResume() {
         super.onResume();
-
         Log.d(Const.TAG, "nano - onResume");
 
         // Reset stop state
@@ -580,41 +590,8 @@ public class DisplayDBEntry extends AppCompatActivity implements PopupMenu.OnMen
             // Deactivate clipboard monitor
             mClipboardMonitor = false;
         }
-        if(mPauseStartTime != 0){
-            mPauseStartTime = 0; // resetting pause time to zero
-            long pauseEndTime = System.currentTimeMillis();
-            mPauseTime = pauseEndTime - mPauseStartTime;
-            mTotalPauseTime += mPauseTime;
-            TextView pauseTimeTextView = findViewById(R.id.pause_time_text);
-            pauseTimeTextView.setText("Temps de déconcentration : " + formatPauseTime(mPauseTime));
-
-            TextView totalPauseTimeTextView = findViewById(R.id.total_pause_time_text);
-            totalPauseTimeTextView.setText("Temps de déconcentration global : " + formatPauseTime(mTotalPauseTime));
-
-            if(mPauseTime >= mDeconcentrationThreshold){
-                // Alert: Pause time exceeds the threshold
-                // Change the background color of the alert layout to red
-                RelativeLayout deconcentrationAlertLayout = findViewById(R.id.deconcentration_alert_layout);
-                deconcentrationAlertLayout.setBackgroundColor(Color.RED);
-                // Change the text color of the pause_time_text TextView to red
-                pauseTimeTextView.setTextColor(Color.RED);
-                TextView deconcentrationText = findViewById(R.id.deconcetration_text);
-                deconcentrationText.setText("Déconcentration !");
-            }
-
-        }
-
     }
 
-    // Helper method to format the pause time in the HH:mm:ss format
-    private String formatPauseTime(long totalPauseTime) {
-        // Convert milliseconds to hours, minutes, and seconds
-        long seconds = totalPauseTime / 1000 % 60;
-        long minutes = totalPauseTime / (1000 * 60) % 60;
-        long hours = totalPauseTime / (1000 * 60 * 60);
-        // Format the time as HH:mm:ss
-        return String.format("%02d:%02d:%02d", hours, minutes, seconds);
-    }
 
     @Override
     protected void onDestroy() {
@@ -1269,13 +1246,14 @@ public class DisplayDBEntry extends AppCompatActivity implements PopupMenu.OnMen
 
         // Setup editor
         if (mCompactToolBar)
-            mEditorCompact = findViewById(R.id.editor);
+            mEditorCompact = (CoordinatorLayout) findViewById(R.id.editor);
+
         else
             mEditor = findViewById(R.id.editor);
 
         mScrollView = findViewById(R.id.edit_scrollview);
 
-        mTitleBar = findViewById(R.id.title_bar);
+        mTitleBar = (LinearLayout) findViewById(R.id.title_bar);
         mTitle = findViewById(R.id.edit_title);
         mTitle.setOnFocusChangeListener(new View.OnFocusChangeListener() {
             public void onFocusChange(View v, boolean hasFocus) {
@@ -1378,6 +1356,11 @@ public class DisplayDBEntry extends AppCompatActivity implements PopupMenu.OnMen
                     String title = mTitle.getText().toString();
                     FirebaseFirestore db = FirebaseFirestore.getInstance();
 
+                    // Calculate writing speed (assuming characters per second)
+                    int currentLength = content.length();
+                    long currentTime = System.currentTimeMillis();
+                    long elapsedTime = Math.max(currentTime - startTime, 1);
+
                     if (!teacher){
                         db.collection("texte_prof").document(title)
                                 .get()
@@ -1392,27 +1375,18 @@ public class DisplayDBEntry extends AppCompatActivity implements PopupMenu.OnMen
                                         }
                                     }
                                 });
-                    } else {
-                        DocumentReference noteRef = db.collection("texte_prof").document(title);
 
-                        Map<String, Object> noteData = new HashMap<>();
-                        noteData.put("title", title);
-                        noteData.put("content", content);
-
-                        noteRef.set(noteData)
-                                .addOnSuccessListener(new OnSuccessListener<Void>() {
-                                    @Override
-                                    public void onSuccess(Void aVoid) {
-                                    }
-                                })
-                                .addOnFailureListener(new OnFailureListener() {
-                                    @Override
-                                    public void onFailure(@NonNull Exception e) {
-                                        // Gérer les erreurs d'écriture
-                                        Toast.makeText(getApplicationContext(), "Erreur lors de la sauvegarde de la note", Toast.LENGTH_SHORT).show();
-                                    }
-                                });
                     }
+
+                    float writingSpeed = (float) (currentLength - previousLength) / elapsedTime * 1000f;
+                    if (writingSpeedTextView != null) {
+                        writingSpeedTextView.setText("Vitesse: " + String.format("%.2f", writingSpeed) + " car/sec");
+                    } else {
+                        Log.e("DisplayDBEntry", "writingSpeedTextView is null!");
+                    }
+                    previousLength = currentLength; // Update for next calculation
+                    startTime = currentTime;
+
                 }
             }
             public void beforeTextChanged(CharSequence s, int start, int count, int after) {
@@ -3994,11 +3968,14 @@ public class DisplayDBEntry extends AppCompatActivity implements PopupMenu.OnMen
     }
 
     private void initiateText(){
-        if (!teacher){
+        //Toast.makeText(getApplicationContext(), "Initiate Text", Toast.LENGTH_SHORT).show();
+        if (!teacher) {
             String content = mContent.getText().toString();
             String title = mTitle.getText().toString();
 
+
             FirebaseFirestore db = FirebaseFirestore.getInstance();
+
 
             db.collection("texte_prof").document(title)
                     .get()
@@ -4007,12 +3984,13 @@ public class DisplayDBEntry extends AppCompatActivity implements PopupMenu.OnMen
                         public void onSuccess(DocumentSnapshot documentSnapshot) {
                             if (documentSnapshot.exists()) {
                                 String teacherContent = documentSnapshot.getString("content");
-                                LevenshteinResult levenshteinResult = calculateSteps(content,teacherContent);
+                                LevenshteinResult levenshteinResult = calculateSteps(content, teacherContent);
                                 updateChanges(content, levenshteinResult);
                             }
                         }
                     });
         }
+
     }
 
     private void doSaveFirebase(String content, LevenshteinResult levenshteinResult){
