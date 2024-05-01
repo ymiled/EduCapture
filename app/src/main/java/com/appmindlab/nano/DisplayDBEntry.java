@@ -1378,8 +1378,10 @@ public class DisplayDBEntry extends AppCompatActivity implements PopupMenu.OnMen
 
                     }
 
+
+
                     float writingSpeed = (float) (currentLength - previousLength) / elapsedTime * 1000f;
-                    if (writingSpeedTextView != null) {
+                    if (writingSpeedTextView != null && currentLength > previousLength) {
                         writingSpeedTextView.setText("Vitesse: " + String.format("%.2f", writingSpeed) + " car/sec");
                     } else {
                         Log.e("DisplayDBEntry", "writingSpeedTextView is null!");
