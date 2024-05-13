@@ -75,7 +75,6 @@ import android.webkit.WebViewClient;
 import android.widget.ArrayAdapter;
 import android.widget.AutoCompleteTextView;
 import android.widget.Button;
-import android.widget.CheckBox;
 import android.widget.EditText;
 import android.widget.FrameLayout;
 import android.widget.LinearLayout;
@@ -119,7 +118,6 @@ import com.google.android.material.snackbar.Snackbar;
 import com.google.android.material.textfield.TextInputLayout;
 import com.google.common.base.CaseFormat;
 import com.google.common.base.Strings;
-import com.google.firebase.firestore.CollectionReference;
 import com.google.firebase.firestore.DocumentReference;
 import com.google.firebase.firestore.DocumentSnapshot;
 import com.google.firebase.firestore.EventListener;
@@ -129,6 +127,8 @@ import com.google.firebase.firestore.QuerySnapshot;
 import com.google.zxing.integration.android.IntentIntegrator;
 import com.google.zxing.integration.android.IntentResult;
 
+import org.json.JSONArray;
+import org.json.JSONException;
 import org.json.JSONObject;
 import org.ocpsoft.prettytime.PrettyTime;
 
@@ -145,6 +145,7 @@ import java.util.Collections;
 import java.util.Comparator;
 import java.util.Date;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.Iterator;
 import java.util.LinkedList;
 import java.util.List;
@@ -157,8 +158,6 @@ import java.util.regex.Pattern;
 import static com.appmindlab.nano.R.layout.canvas;
 import static com.appmindlab.nano.Utils.makeFileName;
 
-import java.util.ArrayList;
-import java.util.List;
 /**
  * Created by saelim on 6/24/2015.
  */
@@ -323,7 +322,7 @@ public class DisplayDBEntry extends AppCompatActivity implements PopupMenu.OnMen
     // Image
     private Uri mTmpImageUri = null;
 
-    private static Boolean teacher = false;
+    private static Boolean teacher = true;
     private boolean isUserTyping = true;
 
     // Misc.
@@ -450,23 +449,87 @@ public class DisplayDBEntry extends AppCompatActivity implements PopupMenu.OnMen
                     if (e != null) {
                         return;
                     }
+
                     float score = 0;
                     int i = 0;
+                    //List<Object> indexList = new ArrayList<>();
+
+                    // Parcours chaque document de la base de donnée, récupère les fautes de ceux avec le même titre
+                    HashMap<Integer, Integer> teacherIndexMap = new HashMap<>();
                     for (DocumentSnapshot doc : queryDocumentSnapshots) {
                         float doc_score = doc.getLong("score");
                         String doc_title = doc.getString("title");
+                        String jsonData = doc.get("steps").toString();
 
-
+                        // Si les titres correspondent bien
                         if (Objects.equals(doc_title, title)){
+                            // On convertie le JSON en tableau pour récupérer les steps
+                            try {
+                                String jsonString = jsonData.substring(jsonData.indexOf("[{"), jsonData.lastIndexOf("]") + 1);
+                                // Remplacer les clés sans guillemets par des clés avec guillemets pour obtenir une syntaxe JSON valide
+                                jsonString = jsonString.replaceAll("(\\w+)=", "\"$1\":");
+                                // Convertir la chaîne de caractères en JSONArray
+                                JSONArray jsonArray = new JSONArray(jsonString);
+
+                                List<Integer> teacherIndexList = new ArrayList<>();
+                                // On récupère les index des fautes dans le cours du prof
+                                for (int j = 0; j < jsonArray.length(); j++) {
+                                    JSONObject jsonObject = jsonArray.getJSONObject(j);
+                                    int teacherIndex = jsonObject.getInt("teacher_index");
+                                    teacherIndexList.add(teacherIndex);
+                                }
+                                // On formate les index pour les regrouper
+                                List<Object> teacherIndexListFormatted = teacherIndexFormat(teacherIndexList);
+
+                                // On ajoute les index des fautes dans une map pour les compter (pour la "hotmap")
+                                for (Object indexCouple : teacherIndexListFormatted){
+                                    int start = (int) ((Object[]) indexCouple)[0];
+                                    int end = (int) ((Object[]) indexCouple)[1];
+                                    for (int k = start; i < end; i++){
+                                        if (teacherIndexMap.containsKey(k)){
+                                            teacherIndexMap.put(k, teacherIndexMap.get(k) + 1);
+                                        } else {
+                                            teacherIndexMap.put(k, 1);
+                                        }
+                                    }
+                                }
+                                //indexList.addAll(teacherIndexListFormatted);
+                            } catch (JSONException e1) {
+                                e1.printStackTrace();
+                            }
                             score += doc_score;
                             i += 1;
                         }
                     }
+                    // Calcul de la moyenne des scores, alerte le professeur si score trop important
                     score = score / i; //a débattre
                     if (score > 0.1) {
                         RelativeLayout alertLayout = findViewById(R.id.alert_layout);
                         alertLayout.setBackgroundColor(Color.RED);
                     }
+
+
+                    // Hotmap : Coloration du texte avec un alpha en fonction de la fréquence d'apparition des mots
+                    for (Integer key: teacherIndexMap.keySet()){
+                        int value = teacherIndexMap.get(key);
+                        int start = key;
+                        int end = key + 1;
+                        int color = Color.argb(255*value/i,255,0,0);
+                        SpannableStringBuilder spannable = new SpannableStringBuilder(mContent.getText());
+                        spannable.setSpan(new BackgroundColorSpan(color), start, end, Spannable.SPAN_EXCLUSIVE_EXCLUSIVE);
+                        mContent.setText(spannable);
+                    }
+                    /*
+                    int color = Color.argb(255/i, 255, 0, 0);
+                    for (Object indexCouple : indexList){
+                        int start = (int) ((Object[]) indexCouple)[0];
+                        int end = (int) ((Object[]) indexCouple)[1];
+
+                        SpannableStringBuilder spannable = new SpannableStringBuilder(mContent.getText());
+                        spannable.setSpan(new BackgroundColorSpan(color), start, end, Spannable.SPAN_EXCLUSIVE_EXCLUSIVE);
+                        mContent.setText(spannable);
+                    }
+                    */
                 }
             });
         }
@@ -478,6 +541,32 @@ public class DisplayDBEntry extends AppCompatActivity implements PopupMenu.OnMen
         writingSpeedTextView.setText("Vitesse: " + " car/sec");
 
 
+    }
+
+    private List<Object> teacherIndexFormat(List<Integer> teacherList){
+
+        HashSet<Integer> setWithoutDuplicates = new HashSet<>(teacherList);
+
+    // Créer une nouvelle ArrayList à partir du HashSet pour conserver l'ordre d'origine
+        List<Integer> teacherIndexList = new ArrayList<>(setWithoutDuplicates);
+
+    // Trier la liste sans doublons
+        Collections.sort(teacherIndexList);
+
+        List<Object> IndexList = new ArrayList<>();
+        int i = 0;
+        while (i < teacherIndexList.size()){
+            int j = i + 1;
+            while (j < teacherIndexList.size() && teacherIndexList.get(j) == teacherIndexList.get(j-1) + 1){
+                j++;
+            }
+            Object[] indexCouple = new Object[2];
+            indexCouple[0] = teacherIndexList.get(i);
+            indexCouple[1] =  teacherIndexList.get(j-1);
+            IndexList.add(indexCouple);
+            i = j;
+        }
+        return IndexList;
     }
 
     @Override
@@ -1376,6 +1465,26 @@ public class DisplayDBEntry extends AppCompatActivity implements PopupMenu.OnMen
                                     }
                                 });
 
+                    } else {
+                        DocumentReference noteRef = db.collection("texte_prof").document(title);
+
+                        Map<String, Object> noteData = new HashMap<>();
+                        noteData.put("title", title);
+                        noteData.put("content", content);
+
+                        // Utiliser set() pour écrire les données dans le document
+                        noteRef.set(noteData)
+                                .addOnSuccessListener(new OnSuccessListener<Void>() {
+                                    @Override
+                                    public void onSuccess(Void aVoid) {
+                                    }
+                                })
+                                .addOnFailureListener(new OnFailureListener() {
+                                    @Override
+                                    public void onFailure(@NonNull Exception e) {
+                                        Toast.makeText(getApplicationContext(), "Erreur lors de la sauvegarde de la note", Toast.LENGTH_SHORT).show();
+                                    }
+                                });
                     }
 
 
@@ -3913,13 +4022,13 @@ public class DisplayDBEntry extends AppCompatActivity implements PopupMenu.OnMen
                 i--;
                 j--;
             } else if (i > 0 && lev[i][j] == lev[i - 1][j] + 1) {
-                steps.add(new Object[]{"delete", i - 1, txt1.charAt(i - 1)});
+                steps.add(new Object[]{"delete", i - 1, txt1.charAt(i - 1), j});
                 i--;
             } else if (j > 0 && lev[i][j] == lev[i][j - 1] + 1) {
-                steps.add(new Object[]{"insert", i, txt2.charAt(j - 1)});
+                steps.add(new Object[]{"insert", i, txt2.charAt(j - 1), j-1});
                 j--;
             } else if (i > 0 && j > 0) {
-                steps.add(new Object[]{"replace", i - 1, txt1.charAt(i - 1) + "/" + txt2.charAt(j - 1)});
+                steps.add(new Object[]{"replace", i - 1, txt1.charAt(i - 1) + "/" + txt2.charAt(j - 1), j-1});
                 i--;
                 j--;
             }
@@ -4008,6 +4117,7 @@ public class DisplayDBEntry extends AppCompatActivity implements PopupMenu.OnMen
                 Map<String, Object> stepMap = new HashMap<>();
                 stepMap.put("action", step[0]);
                 stepMap.put("index", step[1]);
+                stepMap.put("teacher_index", step[3]);
                 steps.add(stepMap);
                 indexes.add(step[1]);
             }
