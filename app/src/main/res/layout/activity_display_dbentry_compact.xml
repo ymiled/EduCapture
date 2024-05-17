@@ -33,51 +33,53 @@
         android:orientation="vertical"
         app:layout_behavior="@string/appbar_scrolling_view_behavior">
 
-        <RelativeLayout
+        <LinearLayout
             android:id="@+id/title_bar"
             android:layout_width="match_parent"
-            android:layout_height="wrap_content">
+            android:layout_height="wrap_content"
+            android:orientation="horizontal">
 
             <EditText
                 android:id="@+id/edit_title"
-                android:hint="@string/hint_title"
-                android:layout_width="match_parent"
+                android:layout_width="0dp"
                 android:layout_height="wrap_content"
-                android:layout_marginTop="0dp"
-                android:layout_marginBottom="0dp"
-                android:layout_marginLeft="0dp"
                 android:layout_marginRight="120dp"
-                android:paddingTop="5dp"
-                android:paddingLeft="8dp"
-                android:paddingBottom="5dp"
-                android:paddingRight="0dp"
-                android:scrollbars="horizontal"
-                android:scrollbarSize="1dp"
-                android:textCursorDrawable="@drawable/custom_cursor"
+                android:layout_weight="1"
                 android:fontFamily="sans-serif-condensed"
-                android:textColor="@android:color/black"
+                android:hint="@string/hint_title"
+                android:imeOptions="actionDone|flagNoExtractUi"
                 android:importantForAutofill="no"
-                android:imeOptions="actionDone|flagNoExtractUi" />
+                android:padding="12dp"
+                android:scrollbarSize="1dp"
+                android:scrollbars="horizontal"
+                android:textColor="@android:color/black"
+                android:textCursorDrawable="@drawable/custom_cursor" />
+
+            <TextView
+                android:id="@+id/score_text"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:textColor="@android:color/black" />
 
             <TextView
                 android:id="@+id/status_bar"
-                android:paddingRight="4dp"
-                android:paddingTop="2dp"
-                android:paddingBottom="2dp"
                 android:layout_width="130dp"
                 android:layout_height="wrap_content"
-                android:layout_margin="0dp"
                 android:layout_below="@id/edit_title"
                 android:layout_alignParentTop="true"
                 android:layout_alignParentRight="true"
-                android:gravity="right"
-                android:textSize="12dp"
-                android:ellipsize="end"
-                android:singleLine="false"
-                android:maxLines="2"
-                android:fontFamily="sans-serif-condensed"
+                android:layout_margin="0dp"
                 android:background="@android:color/transparent"
-                android:textColor="@color/edit_status_bar" />
+                android:ellipsize="end"
+                android:fontFamily="sans-serif-condensed"
+                android:gravity="right"
+                android:maxLines="2"
+                android:paddingTop="2dp"
+                android:paddingRight="4dp"
+                android:paddingBottom="2dp"
+                android:singleLine="false"
+                android:textColor="@color/edit_status_bar"
+                android:textSize="12dp" />
 
             <ProgressBar
                 android:id="@+id/io_progress_bar"
@@ -86,18 +88,25 @@
                 android:layout_height="2dp"
                 android:layout_below="@id/edit_title"
                 android:indeterminateOnly="true"
-                android:indeterminateTintMode="src_in"
                 android:indeterminateTint="@color/io_progress_bar_background"
+                android:indeterminateTintMode="src_in"
                 android:visibility="gone" />
 
-
-
-        </RelativeLayout>
+        </LinearLayout>
 
         <RelativeLayout
             android:id="@+id/alert_layout"
             android:layout_width="match_parent"
             android:layout_height="40dp" />
+
+        <TextView
+            android:id="@+id/writing_speed_text"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:gravity="center_horizontal"
+            android:textColor="@android:color/black"
+            android:textSize="16sp"
+            android:textStyle="bold" />
 
         <androidx.core.widget.NestedScrollView
             android:layout_width="match_parent"

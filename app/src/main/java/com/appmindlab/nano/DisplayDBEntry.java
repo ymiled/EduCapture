@@ -324,6 +324,7 @@ public class DisplayDBEntry extends AppCompatActivity implements PopupMenu.OnMen
 
     private static Boolean teacher = true;
     private boolean isUserTyping = true;
+    private long mLastUpdateTime = System.currentTimeMillis();
 
     // Misc.
     protected static DisplayDBEntry display_dbentry;
@@ -442,6 +443,7 @@ public class DisplayDBEntry extends AppCompatActivity implements PopupMenu.OnMen
         // Initialize UI elements
 
         if (teacher) {
+            RelativeLayout alertLayout = findViewById(R.id.alert_layout);
             FirebaseFirestore db = FirebaseFirestore.getInstance();
             String title = mTitle.getText().toString();
             db.collection("notes").addSnapshotListener(new EventListener<QuerySnapshot>() {
@@ -454,18 +456,24 @@ public class DisplayDBEntry extends AppCompatActivity implements PopupMenu.OnMen
                     int i = 0;
                     //List<Object> indexList = new ArrayList<>();
 
+                    List<Integer> lastIndexList = new ArrayList<>();
+
                     // Parcours chaque document de la base de donnée, récupère les fautes de ceux avec le même titre
                     HashMap<Integer, Integer> teacherIndexMap = new HashMap<>();
                     for (DocumentSnapshot doc : queryDocumentSnapshots) {
-                        float doc_score = doc.getLong("score");
+                        Double doc_score = doc.getDouble("score");
                         String doc_title = doc.getString("title");
                         String jsonData = doc.get("steps").toString();
 
                         // Si les titres correspondent bien
                         if (Objects.equals(doc_title, title)){
                             // On convertie le JSON en tableau pour récupérer les steps
+
                             try {
-                                String jsonString = jsonData.substring(jsonData.indexOf("[{"), jsonData.lastIndexOf("]") + 1);
+                                String jsonString = jsonData;
+                                if (jsonData.contains("{")){
+                                    jsonString = jsonData.substring(jsonData.indexOf("[{"), jsonData.lastIndexOf("]") + 1);
+                                }
                                 // Remplacer les clés sans guillemets par des clés avec guillemets pour obtenir une syntaxe JSON valide
                                 jsonString = jsonString.replaceAll("(\\w+)=", "\"$1\":");
                                 // Convertir la chaîne de caractères en JSONArray
@@ -477,6 +485,10 @@ public class DisplayDBEntry extends AppCompatActivity implements PopupMenu.OnMen
                                     JSONObject jsonObject = jsonArray.getJSONObject(j);
                                     int teacherIndex = jsonObject.getInt("teacher_index");
                                     teacherIndexList.add(teacherIndex);
+                                    String action = jsonObject.getString("action");
+                                    if (action == "insert" && j == jsonArray.length() - 1){
+                                        lastIndexList.add(j);
+                                    }
                                 }
                                 // On formate les index pour les regrouper
                                 List<Object> teacherIndexListFormatted = teacherIndexFormat(teacherIndexList);
@@ -485,7 +497,7 @@ public class DisplayDBEntry extends AppCompatActivity implements PopupMenu.OnMen
                                 for (Object indexCouple : teacherIndexListFormatted){
                                     int start = (int) ((Object[]) indexCouple)[0];
                                     int end = (int) ((Object[]) indexCouple)[1];
-                                    for (int k = start; i < end; i++){
+                                    for (int k = start; k < end; k++){
                                         if (teacherIndexMap.containsKey(k)){
                                             teacherIndexMap.put(k, teacherIndexMap.get(k) + 1);
                                         } else {
@@ -502,34 +514,53 @@ public class DisplayDBEntry extends AppCompatActivity implements PopupMenu.OnMen
                         }
                     }
                     // Calcul de la moyenne des scores, alerte le professeur si score trop important
-                    score = score / i; //a débattre
-                    if (score > 0.1) {
-                        RelativeLayout alertLayout = findViewById(R.id.alert_layout);
-                        alertLayout.setBackgroundColor(Color.RED);
+                    if (i > 0){
+                        score = score / i; //a débattre
                     }
 
+                    Editable editable = mContent.getEditableText();
+
+                    BackgroundColorSpan[] spans = editable.getSpans(0, editable.length(), BackgroundColorSpan.class);
+                    for (BackgroundColorSpan span : spans) {
+                        editable.removeSpan(span);
+                    }
+
+                    int cursorPosition = mContent.getSelectionStart();
 
                     // Hotmap : Coloration du texte avec un alpha en fonction de la fréquence d'apparition des mots
                     for (Integer key: teacherIndexMap.keySet()){
                         int value = teacherIndexMap.get(key);
                         int start = key;
-                        int end = key + 1;
                         int color = Color.argb(255*value/i,255,0,0);
-                        SpannableStringBuilder spannable = new SpannableStringBuilder(mContent.getText());
-                        spannable.setSpan(new BackgroundColorSpan(color), start, end, Spannable.SPAN_EXCLUSIVE_EXCLUSIVE);
-                        mContent.setText(spannable);
+                        if (start < mContent.getText().length()){
+                            editable.setSpan(new BackgroundColorSpan(color), start, start + 1, Spannable.SPAN_EXCLUSIVE_EXCLUSIVE);
+                        }
                     }
-                    /*
-                    int color = Color.argb(255/i, 255, 0, 0);
-                    for (Object indexCouple : indexList){
-                        int start = (int) ((Object[]) indexCouple)[0];
-                        int end = (int) ((Object[]) indexCouple)[1];
 
-                        SpannableStringBuilder spannable = new SpannableStringBuilder(mContent.getText());
-                        spannable.setSpan(new BackgroundColorSpan(color), start, end, Spannable.SPAN_EXCLUSIVE_EXCLUSIVE);
-                        mContent.setText(spannable);
+                    isUserTyping = false;
+                    mContent.setText(editable);
+                    if (cursorPosition <= editable.length()) {
+                        mContent.setSelection(cursorPosition);
                     }
-                    */
+                    isUserTyping = true;
+
+                    //Si le prof prend trop d'avance
+                    int averageLastIndex = 0;
+                    for (int num:lastIndexList){
+                        averageLastIndex += num;
+                    }
+                    if (i > 0){
+                        averageLastIndex /= i;
+                    }
+                    int deltaLastIndex = mContent.getText().length() - averageLastIndex;
+
+                    if (deltaLastIndex > 20){
+                        alertLayout.setBackgroundColor(Color.parseColor("#ffae00"));
+                    } else if (score > 0.1) {
+                        alertLayout.setBackgroundColor(Color.parseColor("#ff0000"));
+                    } else {
+                        alertLayout.setBackgroundColor(Color.TRANSPARENT);
+                    }
                 }
             });
         }
@@ -538,32 +569,58 @@ public class DisplayDBEntry extends AppCompatActivity implements PopupMenu.OnMen
         previousLength = mContent.getText().toString().length();
 
         writingSpeedTextView = findViewById(R.id.writing_speed_text);
-        writingSpeedTextView.setText("Vitesse: " + " car/sec");
-
-
+        //writingSpeedTextView.setText("Vitesse: " + " car/sec");
     }
 
     private List<Object> teacherIndexFormat(List<Integer> teacherList){
-
         HashSet<Integer> setWithoutDuplicates = new HashSet<>(teacherList);
 
-    // Créer une nouvelle ArrayList à partir du HashSet pour conserver l'ordre d'origine
         List<Integer> teacherIndexList = new ArrayList<>(setWithoutDuplicates);
 
-    // Trier la liste sans doublons
+        // Trier la liste sans doublons
         Collections.sort(teacherIndexList);
 
+        //On compte le nombre de fois qu'une erreur apparaît à un certain indice
+        HashMap<Integer,Integer> countMap = new HashMap<>();
+        for (int element : teacherIndexList){
+            for (int e: teacherList){
+                int count = 0;
+                if (e == element){
+                    count++;
+                }
+                countMap.put(element, count);
+            }
+        }
+
         List<Object> IndexList = new ArrayList<>();
+        String content = String.valueOf(mContent.getText());
         int i = 0;
         while (i < teacherIndexList.size()){
             int j = i + 1;
             while (j < teacherIndexList.size() && teacherIndexList.get(j) == teacherIndexList.get(j-1) + 1){
                 j++;
             }
-            Object[] indexCouple = new Object[2];
-            indexCouple[0] = teacherIndexList.get(i);
-            indexCouple[1] =  teacherIndexList.get(j-1);
-            IndexList.add(indexCouple);
+            //Si la taille de la faute est plus grande que 1
+            //Autrement dit, s'il ne s'agit pas d'une faute de frappe
+
+            if ((j-i > 1) || (j-1-i == 0 && countMap.get(teacherIndexList.get(i)) > 1)){
+                int startIndex = teacherIndexList.get(i) - 1;
+                int endIndex = teacherIndexList.get(j-1) + 1;
+
+                while (startIndex > 0 && startIndex < content.length() && content.charAt(startIndex - 1) != ' '){
+                    startIndex--;
+                }
+                while (0 < endIndex && endIndex <= content.length() - 1 && content.charAt(endIndex) != ' '){
+                    endIndex++;
+                }
+                if (endIndex > content.length()){
+                    endIndex--;
+                }
+                Object[] indexCouple = new Object[2];
+                indexCouple[0] = startIndex;
+                indexCouple[1] =  endIndex;
+                IndexList.add(indexCouple);
+            }
             i = j;
         }
         return IndexList;
@@ -1438,7 +1495,6 @@ public class DisplayDBEntry extends AppCompatActivity implements PopupMenu.OnMen
         });
 
         mContent.addTextChangedListener(new TextWatcher() {
-
             public void afterTextChanged(Editable s) {
                 if (isUserTyping){
                     String content = s.toString();
@@ -1449,21 +1505,23 @@ public class DisplayDBEntry extends AppCompatActivity implements PopupMenu.OnMen
                     int currentLength = content.length();
                     long currentTime = System.currentTimeMillis();
                     long elapsedTime = Math.max(currentTime - startTime, 1);
-
                     if (!teacher){
-                        db.collection("texte_prof").document(title)
-                                .get()
-                                .addOnSuccessListener(new OnSuccessListener<DocumentSnapshot>() {
-                                    @Override
-                                    public void onSuccess(DocumentSnapshot documentSnapshot) {
-                                        if (documentSnapshot.exists()) {
-                                            String teacherContent = documentSnapshot.getString("content");
-                                            LevenshteinResult levenshteinResult = calculateSteps(content,teacherContent);
-                                            doSaveFirebase(content, levenshteinResult);
-                                            updateChanges(content, levenshteinResult);
+                        if ((currentTime - mLastUpdateTime) > 700){
+                            db.collection("texte_prof").document(title)
+                                    .get()
+                                    .addOnSuccessListener(new OnSuccessListener<DocumentSnapshot>() {
+                                        @Override
+                                        public void onSuccess(DocumentSnapshot documentSnapshot) {
+                                            if (documentSnapshot.exists()) {
+                                                String teacherContent = documentSnapshot.getString("content");
+                                                LevenshteinResult levenshteinResult = calculateSteps(content,teacherContent);
+                                                doSaveFirebase(content, levenshteinResult);
+                                                updateChanges(content, levenshteinResult);
+                                                mLastUpdateTime = System.currentTimeMillis();
+                                            }
                                         }
-                                    }
-                                });
+                                    });
+                        }
 
                     } else {
                         DocumentReference noteRef = db.collection("texte_prof").document(title);
@@ -4051,31 +4109,66 @@ public class DisplayDBEntry extends AppCompatActivity implements PopupMenu.OnMen
 
         Editable editable = mContent.getEditableText();
 
+        BackgroundColorSpan[] spans = editable.getSpans(0, editable.length(), BackgroundColorSpan.class);
+        for (BackgroundColorSpan span : spans) {
+            editable.removeSpan(span);
+        }
+
         int cursorPosition = mContent.getSelectionStart();
-        List<Object> indexes = new ArrayList<>();
+        List<Change> changes = new ArrayList<>();
         for (Object[] step : l.getSteps()) {
             int startIndex = (int) step[1];
-            if (!indexes.contains(startIndex) && startIndex < editable.length() - 1) {
-                indexes.add(startIndex);
+            if (startIndex < editable.length() - 1) {
                 String action = (String) step[0];
-                // Appliquer le style au texte modifié
-                if (startIndex + 1 < editable.length()) { // Vérifier si la longueur du texte est nulle
-                    if (action.equals("delete")) {
-                        editable.setSpan(new BackgroundColorSpan(Color.RED), startIndex, startIndex + 1, Spannable.SPAN_EXCLUSIVE_EXCLUSIVE);
-                    } else if (action.equals("insert")) {
-                        editable.setSpan(new BackgroundColorSpan(Color.GREEN), startIndex, startIndex + 1, Spannable.SPAN_EXCLUSIVE_EXCLUSIVE);
-                    } else if (action.equals("replace")) {
-                        editable.setSpan(new BackgroundColorSpan(Color.YELLOW), startIndex, startIndex + 1, Spannable.SPAN_EXCLUSIVE_EXCLUSIVE);
-                    }
+                int baseColor = 0;
+                if (action.equals("delete")) {
+                    baseColor = Color.parseColor("#D37676");
+                } else if (action.equals("insert")) {
+                    baseColor = Color.parseColor("#BED7DC");
+                } else if (action.equals("replace")) {
+                    baseColor = Color.parseColor("#F1EF99");
                 }
+                int alpha = (int) ((int) 255 * 0.8);
+                int color = Color.argb(alpha, Color.red(baseColor), Color.green(baseColor), Color.blue(baseColor));
+                changes.add(new Change(startIndex, startIndex + 1, color));
             }
         }
+
+        for (Change change : changes) {
+            editable.setSpan(new BackgroundColorSpan(change.getColor()), change.getStartIndex(), change.getEndIndex(), Spannable.SPAN_EXCLUSIVE_EXCLUSIVE);
+        }
+
         isUserTyping = false;
         mContent.setText(editable);
         if (cursorPosition <= editable.length()) {
             mContent.setSelection(cursorPosition);
         }
         isUserTyping = true;
+    }
+
+
+    private static class Change {
+        private final int startIndex;
+        private final int endIndex;
+        private final int color;
+
+        public Change(int startIndex, int endIndex, int color) {
+            this.startIndex = startIndex;
+            this.endIndex = endIndex;
+            this.color = color;
+        }
+
+        public int getStartIndex() {
+            return startIndex;
+        }
+
+        public int getEndIndex() {
+            return endIndex;
+        }
+
+        public int getColor() {
+            return color;
+        }
     }
 
     private void initiateText(){
