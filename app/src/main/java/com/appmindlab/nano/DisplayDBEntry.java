@@ -41,6 +41,7 @@ import android.text.Html;
 import android.text.InputType;
 import android.text.Layout;
 import android.text.Spannable;
+import android.text.SpannableString;
 import android.text.SpannableStringBuilder;
 import android.text.TextUtils;
 import android.text.TextWatcher;
@@ -99,6 +100,7 @@ import androidx.core.content.ContextCompat;
 import androidx.core.content.FileProvider;
 import androidx.core.view.GestureDetectorCompat;
 import androidx.documentfile.provider.DocumentFile;
+import androidx.drawerlayout.widget.DrawerLayout;
 import androidx.fragment.app.FragmentManager;
 import androidx.fragment.app.FragmentTransaction;
 
@@ -114,6 +116,7 @@ import com.google.android.gms.tasks.OnSuccessListener;
 import com.google.android.material.bottomsheet.BottomSheetDialog;
 import com.google.android.material.chip.Chip;
 import com.google.android.material.chip.ChipGroup;
+import com.google.android.material.navigation.NavigationView;
 import com.google.android.material.snackbar.Snackbar;
 import com.google.android.material.textfield.TextInputLayout;
 import com.google.common.base.CaseFormat;
@@ -323,6 +326,12 @@ public class DisplayDBEntry extends AppCompatActivity implements PopupMenu.OnMen
     private Uri mTmpImageUri = null;
 
     private static Boolean teacher = true;
+    private static Boolean showCursors = false;
+    private static String name = "Eleve";
+
+    private NavigationView sidebar;
+    private Button openSidebarButton;
+    private DrawerLayout drawerLayout;
     private boolean isUserTyping = true;
     private long mLastUpdateTime = System.currentTimeMillis();
 
@@ -443,7 +452,6 @@ public class DisplayDBEntry extends AppCompatActivity implements PopupMenu.OnMen
         // Initialize UI elements
 
         if (teacher) {
-            RelativeLayout alertLayout = findViewById(R.id.alert_layout);
             FirebaseFirestore db = FirebaseFirestore.getInstance();
             String title = mTitle.getText().toString();
             db.collection("notes").addSnapshotListener(new EventListener<QuerySnapshot>() {
@@ -451,116 +459,7 @@ public class DisplayDBEntry extends AppCompatActivity implements PopupMenu.OnMen
                     if (e != null) {
                         return;
                     }
-
-                    float score = 0;
-                    int i = 0;
-                    //List<Object> indexList = new ArrayList<>();
-
-                    List<Integer> lastIndexList = new ArrayList<>();
-
-                    // Parcours chaque document de la base de donnée, récupère les fautes de ceux avec le même titre
-                    HashMap<Integer, Integer> teacherIndexMap = new HashMap<>();
-                    for (DocumentSnapshot doc : queryDocumentSnapshots) {
-                        Double doc_score = doc.getDouble("score");
-                        String doc_title = doc.getString("title");
-                        String jsonData = doc.get("steps").toString();
-
-                        // Si les titres correspondent bien
-                        if (Objects.equals(doc_title, title)){
-                            // On convertie le JSON en tableau pour récupérer les steps
-
-                            try {
-                                String jsonString = jsonData;
-                                if (jsonData.contains("{")){
-                                    jsonString = jsonData.substring(jsonData.indexOf("[{"), jsonData.lastIndexOf("]") + 1);
-                                }
-                                // Remplacer les clés sans guillemets par des clés avec guillemets pour obtenir une syntaxe JSON valide
-                                jsonString = jsonString.replaceAll("(\\w+)=", "\"$1\":");
-                                // Convertir la chaîne de caractères en JSONArray
-                                JSONArray jsonArray = new JSONArray(jsonString);
-
-                                List<Integer> teacherIndexList = new ArrayList<>();
-                                // On récupère les index des fautes dans le cours du prof
-                                for (int j = 0; j < jsonArray.length(); j++) {
-                                    JSONObject jsonObject = jsonArray.getJSONObject(j);
-                                    int teacherIndex = jsonObject.getInt("teacher_index");
-                                    teacherIndexList.add(teacherIndex);
-                                    String action = jsonObject.getString("action");
-                                    if (action == "insert" && j == jsonArray.length() - 1){
-                                        lastIndexList.add(j);
-                                    }
-                                }
-                                // On formate les index pour les regrouper
-                                List<Object> teacherIndexListFormatted = teacherIndexFormat(teacherIndexList);
-
-                                // On ajoute les index des fautes dans une map pour les compter (pour la "hotmap")
-                                for (Object indexCouple : teacherIndexListFormatted){
-                                    int start = (int) ((Object[]) indexCouple)[0];
-                                    int end = (int) ((Object[]) indexCouple)[1];
-                                    for (int k = start; k < end; k++){
-                                        if (teacherIndexMap.containsKey(k)){
-                                            teacherIndexMap.put(k, teacherIndexMap.get(k) + 1);
-                                        } else {
-                                            teacherIndexMap.put(k, 1);
-                                        }
-                                    }
-                                }
-                                //indexList.addAll(teacherIndexListFormatted);
-                            } catch (JSONException e1) {
-                                e1.printStackTrace();
-                            }
-                            score += doc_score;
-                            i += 1;
-                        }
-                    }
-                    // Calcul de la moyenne des scores, alerte le professeur si score trop important
-                    if (i > 0){
-                        score = score / i; //a débattre
-                    }
-
-                    Editable editable = mContent.getEditableText();
-
-                    BackgroundColorSpan[] spans = editable.getSpans(0, editable.length(), BackgroundColorSpan.class);
-                    for (BackgroundColorSpan span : spans) {
-                        editable.removeSpan(span);
-                    }
-
-                    int cursorPosition = mContent.getSelectionStart();
-
-                    // Hotmap : Coloration du texte avec un alpha en fonction de la fréquence d'apparition des mots
-                    for (Integer key: teacherIndexMap.keySet()){
-                        int value = teacherIndexMap.get(key);
-                        int start = key;
-                        int color = Color.argb(255*value/i,255,0,0);
-                        if (start < mContent.getText().length()){
-                            editable.setSpan(new BackgroundColorSpan(color), start, start + 1, Spannable.SPAN_EXCLUSIVE_EXCLUSIVE);
-                        }
-                    }
-
-                    isUserTyping = false;
-                    mContent.setText(editable);
-                    if (cursorPosition <= editable.length()) {
-                        mContent.setSelection(cursorPosition);
-                    }
-                    isUserTyping = true;
-
-                    //Si le prof prend trop d'avance
-                    int averageLastIndex = 0;
-                    for (int num:lastIndexList){
-                        averageLastIndex += num;
-                    }
-                    if (i > 0){
-                        averageLastIndex /= i;
-                    }
-                    int deltaLastIndex = mContent.getText().length() - averageLastIndex;
-
-                    if (deltaLastIndex > 20){
-                        alertLayout.setBackgroundColor(Color.parseColor("#ffae00"));
-                    } else if (score > 0.1) {
-                        alertLayout.setBackgroundColor(Color.parseColor("#ff0000"));
-                    } else {
-                        alertLayout.setBackgroundColor(Color.TRANSPARENT);
-                    }
+                    updateTeacherText(queryDocumentSnapshots);
                 }
             });
         }
@@ -570,6 +469,192 @@ public class DisplayDBEntry extends AppCompatActivity implements PopupMenu.OnMen
 
         writingSpeedTextView = findViewById(R.id.writing_speed_text);
         //writingSpeedTextView.setText("Vitesse: " + " car/sec");
+
+        sidebar = findViewById(R.id.sidebar);
+        openSidebarButton = findViewById(R.id.button_open_sidebar);
+        drawerLayout = findViewById(R.id.drawer_layout);
+
+        if (teacher){
+            openSidebarButton.setVisibility(View.VISIBLE);
+        } else {
+            openSidebarButton.setVisibility(View.GONE);
+        }
+        openSidebarButton.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View v) {
+                drawerLayout.openDrawer(sidebar);
+            }
+        });
+        drawerLayout.addDrawerListener(new DrawerLayout.DrawerListener() {
+            @Override
+            public void onDrawerSlide(View drawerView, float slideOffset) {}
+
+            @Override
+            public void onDrawerOpened(View drawerView) {}
+
+            @Override
+            public void onDrawerClosed(View drawerView) {
+                // This method is called when the drawer is closed
+                // You can perform any action here, such as updating UI
+            }
+
+            @Override
+            public void onDrawerStateChanged(int newState) {}
+        });
+
+        sidebar.setNavigationItemSelectedListener(new NavigationView.OnNavigationItemSelectedListener() {
+            @Override
+            public boolean onNavigationItemSelected(@NonNull MenuItem item) {
+                // Handle navigation item clicks here
+                switch (item.getItemId()) {
+                    case R.id.nav_home:
+                        // Handle Home click
+                        break;
+                    case R.id.nav_gallery:
+                        // Handle Gallery click
+                        break;
+                    case R.id.nav_slideshow:
+                        // Handle Slideshow click
+                        break;
+                    case R.id.cursors_checkbox:
+                        // Handle "Curseurs" check state change
+                        showCursors = item.isChecked();
+                        FirebaseFirestore db = FirebaseFirestore.getInstance();
+                        db.collection("notes").get()
+                                        .addOnSuccessListener(new OnSuccessListener<QuerySnapshot>() {
+                                            @Override
+                                            public void onSuccess(QuerySnapshot queryDocumentSnapshots) {
+                                                // La requête a réussi, obtenir le QuerySnapshot
+                                                // Mettez à jour l'interface utilisateur ou effectuez le traitement nécessaire
+                                                updateTeacherText(queryDocumentSnapshots);
+                                            }
+                                        });
+                        return false;
+                }
+                // Close the drawer when an item is selected
+                drawerLayout.closeDrawers();
+                return true;
+            }
+        });
+    }
+
+    private void updateTeacherText(QuerySnapshot queryDocumentSnapshots){
+        float score = 0;
+        int i = 0;
+        //List<Object> indexList = new ArrayList<>();
+
+        List<Integer> lastIndexList = new ArrayList<>();
+
+        // Parcours chaque document de la base de donnée, récupère les fautes de ceux avec le même titre
+        HashMap<Integer, Integer> teacherIndexMap = new HashMap<>();
+        for (DocumentSnapshot doc : queryDocumentSnapshots) {
+            Double doc_score = doc.getDouble("score");
+            String doc_title = doc.getString("title");
+            Long lastIndex = doc.getLong("lastIndex");
+            String jsonData = doc.get("steps").toString();
+            if (lastIndex != null)
+                lastIndexList.add(lastIndex.intValue());
+            String title = mTitle.getText().toString();
+            // Si les titres correspondent bien
+            if (Objects.equals(doc_title, title)){
+                // On convertie le JSON en tableau pour récupérer les steps
+
+                try {
+                    String jsonString = jsonData;
+                    if (jsonData.contains("{")){
+                        jsonString = jsonData.substring(jsonData.indexOf("[{"), jsonData.lastIndexOf("]") + 1);
+                    }
+                    // Remplacer les clés sans guillemets par des clés avec guillemets pour obtenir une syntaxe JSON valide
+                    jsonString = jsonString.replaceAll("(\\w+)=", "\"$1\":");
+                    // Convertir la chaîne de caractères en JSONArray
+                    JSONArray jsonArray = new JSONArray(jsonString);
+
+                    List<Integer> teacherIndexList = new ArrayList<>();
+                    // On récupère les index des fautes dans le cours du prof
+                    for (int j = 0; j < jsonArray.length(); j++) {
+                        JSONObject jsonObject = jsonArray.getJSONObject(j);
+                        int teacherIndex = jsonObject.getInt("teacher_index");
+                        teacherIndexList.add(teacherIndex);
+                    }
+
+                    // On formate les index pour les regrouper
+                    List<Object> teacherIndexListFormatted = teacherIndexFormat(teacherIndexList);
+
+                    // On ajoute les index des fautes dans une map pour les compter (pour la "hotmap")
+                    for (Object indexCouple : teacherIndexListFormatted){
+                        int start = (int) ((Object[]) indexCouple)[0];
+                        int end = (int) ((Object[]) indexCouple)[1];
+                        for (int k = start; k < end; k++){
+                            if (teacherIndexMap.containsKey(k)){
+                                teacherIndexMap.put(k, teacherIndexMap.get(k) + 1);
+                            } else {
+                                teacherIndexMap.put(k, 1);
+                            }
+                        }
+                    }
+
+                    //indexList.addAll(teacherIndexListFormatted);
+                } catch (JSONException e1) {
+                    e1.printStackTrace();
+                }
+                score += doc_score;
+                i += 1;
+            }
+        }
+        // Calcul de la moyenne des scores, alerte le professeur si score trop important
+        if (i > 0){
+            score = score / i; //a débattre
+        }
+
+        Editable editable = mContent.getEditableText();
+
+        BackgroundColorSpan[] spans = editable.getSpans(0, editable.length(), BackgroundColorSpan.class);
+        for (BackgroundColorSpan span : spans) {
+            editable.removeSpan(span);
+        }
+
+        int cursorPosition = mContent.getSelectionStart();
+
+        // Hotmap : Coloration du texte avec un alpha en fonction de la fréquence d'apparition des mots
+        for (Integer key: teacherIndexMap.keySet()){
+            int value = teacherIndexMap.get(key);
+            int start = key;
+            int color = Color.argb(255*value/i,255,0,0);
+            if (start < mContent.getText().length() && start >= 0){
+                editable.setSpan(new BackgroundColorSpan(color), start, start + 1, Spannable.SPAN_EXCLUSIVE_EXCLUSIVE);
+            }
+        }
+
+        isUserTyping = false;
+        mContent.setText(editable);
+        if (cursorPosition <= editable.length()) {
+            mContent.setSelection(cursorPosition);
+        }
+        isUserTyping = true;
+
+        //Si le prof prend trop d'avance
+        int averageLastIndex = 0;
+        int cursorColor = Color.BLUE;
+        for (int num:lastIndexList){
+            averageLastIndex += num;
+            if (showCursors){
+                if (num < editable.length() && num >= 0) {
+                    editable.setSpan(new BackgroundColorSpan(cursorColor), num, num + 1, Spannable.SPAN_EXCLUSIVE_EXCLUSIVE);
+                }
+            }
+        }
+        if (i > 0){
+            averageLastIndex /= i;
+        }
+        int deltaLastIndex = mContent.getText().length() - averageLastIndex;
+        RelativeLayout alertLayout = findViewById(R.id.alert_layout);
+        if (deltaLastIndex > 20){
+            alertLayout.setBackgroundColor(Color.parseColor("#ffae00"));
+        } else if (score > 0.1) {
+            alertLayout.setBackgroundColor(Color.parseColor("#ff0000"));
+        } else {
+            alertLayout.setBackgroundColor(Color.TRANSPARENT);
+        }
     }
 
     private List<Object> teacherIndexFormat(List<Integer> teacherList){
@@ -628,6 +713,10 @@ public class DisplayDBEntry extends AppCompatActivity implements PopupMenu.OnMen
 
     @Override
     public boolean onTouchEvent(MotionEvent event) {
+        if (drawerLayout.isDrawerOpen(sidebar)) {
+            drawerLayout.closeDrawer(sidebar);
+            return true;
+        }
         return super.onTouchEvent(event);
     }
 
@@ -1383,6 +1472,16 @@ public class DisplayDBEntry extends AppCompatActivity implements PopupMenu.OnMen
         this.getOnBackPressedDispatcher().addCallback(this, back_press_callback);
     }
 
+    @Override
+    public void onBackPressed() {
+        // Close the sidebar when back button is pressed if it's open
+        if (drawerLayout.isDrawerOpen(sidebar)) {
+            drawerLayout.closeDrawer(sidebar);
+        } else {
+            super.onBackPressed();
+        }
+    }
+
     // Setup editor
     protected void setupEditor() {
         // Get the message from the intent
@@ -1522,7 +1621,6 @@ public class DisplayDBEntry extends AppCompatActivity implements PopupMenu.OnMen
                                         }
                                     });
                         }
-
                     } else {
                         DocumentReference noteRef = db.collection("texte_prof").document(title);
 
@@ -4205,6 +4303,7 @@ public class DisplayDBEntry extends AppCompatActivity implements PopupMenu.OnMen
 
         List<Map<String, Object>> steps = new ArrayList<>();
         List<Object> indexes = new ArrayList<>();
+
         for (Object[] step : levenshteinResult.getSteps()) {
             if (!step[0].equals("nothing") && !indexes.contains(step[1])) {
                 Map<String, Object> stepMap = new HashMap<>();
@@ -4215,12 +4314,14 @@ public class DisplayDBEntry extends AppCompatActivity implements PopupMenu.OnMen
                 indexes.add(step[1]);
             }
         }
-
+        int lastIndex = mContent.getText().length();
         Map<String, Object> noteData = new HashMap<>();
+        noteData.put("name", name);
         noteData.put("title", title);
         noteData.put("content", content);
         noteData.put("score", levenshteinResult.getScore());
         noteData.put("steps", steps);
+        noteData.put("lastIndex",lastIndex);
 
         // Utiliser set() pour écrire les données dans le document
         noteRef.set(noteData)
