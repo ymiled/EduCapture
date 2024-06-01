@@ -69,12 +69,23 @@
                     android:textColor="@android:color/black" />
 
                 <Button
-                    android:id="@+id/button_open_sidebar"
-                    android:layout_width="wrap_content"
+                    android:id="@+id/unfocus_button"
+                    android:layout_width="50dp"
                     android:layout_height="wrap_content"
-                    android:text="X"
-                    android:layout_marginEnd="16dp"
-                    android:layout_marginTop="16dp"/>
+                    android:drawableLeft="@drawable/ic_update"
+                    android:padding="10dp"
+                    android:drawablePadding="10dp"
+                    android:background="?attr/selectableItemBackgroundBorderless"/>
+
+
+                <Button
+                    android:id="@+id/button_open_sidebar"
+                    android:layout_width="50dp"
+                    android:layout_height="wrap_content"
+                    android:drawableLeft="@drawable/ic_class"
+                    android:padding="10dp"
+                    android:drawablePadding="10dp"
+                    android:background="?attr/selectableItemBackgroundBorderless" />
 
                 <TextView
                     android:id="@+id/status_bar"
@@ -182,11 +193,36 @@
         </LinearLayout>
 
     </androidx.coordinatorlayout.widget.CoordinatorLayout>
-    <com.google.android.material.navigation.NavigationView
+
+    <LinearLayout
         android:id="@+id/sidebar"
         android:layout_width="wrap_content"
         android:layout_height="match_parent"
         android:layout_gravity="end"
-        app:menu="@menu/sidebar"/>
+        android:background="#fff"
+        android:orientation="vertical">
 
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="match_parent"
+            android:orientation="vertical"
+            android:layout_marginStart="50dp"
+            android:layout_marginEnd="50dp"
+            android:layout_marginTop="20dp">
+
+            <CheckBox
+                android:id="@+id/cursors_checkbox"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="Curseurs"
+                android:buttonTint="@color/colorPrimary"
+                android:textColor="#000"/>
+
+            <androidx.recyclerview.widget.RecyclerView
+                android:id="@+id/recycler_view_users"
+                android:layout_width="match_parent"
+                android:layout_height="match_parent" />
+        </LinearLayout>
+
+    </LinearLayout>
 </androidx.drawerlayout.widget.DrawerLayout>

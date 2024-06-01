@@ -76,6 +76,7 @@ import android.webkit.WebViewClient;
 import android.widget.ArrayAdapter;
 import android.widget.AutoCompleteTextView;
 import android.widget.Button;
+import android.widget.CheckBox;
 import android.widget.EditText;
 import android.widget.FrameLayout;
 import android.widget.LinearLayout;
@@ -103,6 +104,8 @@ import androidx.documentfile.provider.DocumentFile;
 import androidx.drawerlayout.widget.DrawerLayout;
 import androidx.fragment.app.FragmentManager;
 import androidx.fragment.app.FragmentTransaction;
+import androidx.recyclerview.widget.LinearLayoutManager;
+import androidx.recyclerview.widget.RecyclerView;
 
 import com.android.volley.Request;
 import com.android.volley.RequestQueue;
@@ -111,8 +114,10 @@ import com.android.volley.VolleyError;
 import com.android.volley.toolbox.JsonObjectRequest;
 import com.android.volley.toolbox.StringRequest;
 import com.android.volley.toolbox.Volley;
+import com.google.android.gms.tasks.OnCompleteListener;
 import com.google.android.gms.tasks.OnFailureListener;
 import com.google.android.gms.tasks.OnSuccessListener;
+import com.google.android.gms.tasks.Task;
 import com.google.android.material.bottomsheet.BottomSheetDialog;
 import com.google.android.material.chip.Chip;
 import com.google.android.material.chip.ChipGroup;
@@ -126,6 +131,7 @@ import com.google.firebase.firestore.DocumentSnapshot;
 import com.google.firebase.firestore.EventListener;
 import com.google.firebase.firestore.FirebaseFirestore;
 import com.google.firebase.firestore.FirebaseFirestoreException;
+import com.google.firebase.firestore.QueryDocumentSnapshot;
 import com.google.firebase.firestore.QuerySnapshot;
 import com.google.zxing.integration.android.IntentIntegrator;
 import com.google.zxing.integration.android.IntentResult;
@@ -155,6 +161,7 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Random;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
@@ -326,10 +333,15 @@ public class DisplayDBEntry extends AppCompatActivity implements PopupMenu.OnMen
     private Uri mTmpImageUri = null;
 
     private static Boolean teacher = true;
+    private static Long focusUserId = null;
     private static Boolean showCursors = false;
     private static String name = "Eleve";
-
-    private NavigationView sidebar;
+    private static String studentId = null;
+    private RecyclerView recyclerViewUsers;
+    private List<User> userList;
+    private UserAdapter userAdapter;
+    private CheckBox showCursorsCheckBox;
+    private View  sidebar;
     private Button openSidebarButton;
     private DrawerLayout drawerLayout;
     private boolean isUserTyping = true;
@@ -459,7 +471,11 @@ public class DisplayDBEntry extends AppCompatActivity implements PopupMenu.OnMen
                     if (e != null) {
                         return;
                     }
-                    updateTeacherText(queryDocumentSnapshots);
+                    if (focusUserId == null){
+                        updateTeacherText(queryDocumentSnapshots);
+                    } else {
+                        updateTeacherTextUserFocused(queryDocumentSnapshots);
+                    }
                 }
             });
         }
@@ -472,19 +488,44 @@ public class DisplayDBEntry extends AppCompatActivity implements PopupMenu.OnMen
 
         sidebar = findViewById(R.id.sidebar);
         openSidebarButton = findViewById(R.id.button_open_sidebar);
+        Button unfocusUserButton = findViewById(R.id.unfocus_button);
         drawerLayout = findViewById(R.id.drawer_layout);
+        recyclerViewUsers = findViewById(R.id.recycler_view_users);
 
-        if (teacher){
+        if (teacher) {
             openSidebarButton.setVisibility(View.VISIBLE);
+            unfocusUserButton.setVisibility(View.VISIBLE);
         } else {
             openSidebarButton.setVisibility(View.GONE);
+            unfocusUserButton.setVisibility(View.GONE);
         }
+
+        CheckBox showCursorsCheckBox = findViewById(R.id.cursors_checkbox);
+        showCursorsCheckBox.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View v) {
+                showCursors = showCursorsCheckBox.isChecked();
+                FirebaseFirestore db = FirebaseFirestore.getInstance();
+                db.collection("notes").get().addOnCompleteListener(new OnCompleteListener<QuerySnapshot>() {
+                    @Override
+                    public void onComplete(@NonNull Task<QuerySnapshot> task) {
+                        if (task.isSuccessful()) {
+                            // Iterate over the documents in the QuerySnapshot
+                            updateTeacherText(task.getResult());
+                        }
+                    }
+                });
+            }
+        });
+
+
         openSidebarButton.setOnClickListener(new View.OnClickListener() {
             @Override
             public void onClick(View v) {
                 drawerLayout.openDrawer(sidebar);
             }
         });
+
         drawerLayout.addDrawerListener(new DrawerLayout.DrawerListener() {
             @Override
             public void onDrawerSlide(View drawerView, float slideOffset) {}
@@ -493,51 +534,114 @@ public class DisplayDBEntry extends AppCompatActivity implements PopupMenu.OnMen
             public void onDrawerOpened(View drawerView) {}
 
             @Override
-            public void onDrawerClosed(View drawerView) {
-                // This method is called when the drawer is closed
-                // You can perform any action here, such as updating UI
-            }
+            public void onDrawerClosed(View drawerView) {}
 
             @Override
             public void onDrawerStateChanged(int newState) {}
         });
 
-        sidebar.setNavigationItemSelectedListener(new NavigationView.OnNavigationItemSelectedListener() {
+        // Initialize user list
+        userList = new ArrayList<>();
+        FirebaseFirestore db = FirebaseFirestore.getInstance();
+        // Add more users as needed
+
+        // Set up RecyclerView
+        recyclerViewUsers.setLayoutManager(new LinearLayoutManager(this));
+        userAdapter = new UserAdapter(this, userList, new UserAdapter.OnUserClickListener() {
             @Override
-            public boolean onNavigationItemSelected(@NonNull MenuItem item) {
-                // Handle navigation item clicks here
-                switch (item.getItemId()) {
-                    case R.id.nav_home:
-                        // Handle Home click
-                        break;
-                    case R.id.nav_gallery:
-                        // Handle Gallery click
-                        break;
-                    case R.id.nav_slideshow:
-                        // Handle Slideshow click
-                        break;
-                    case R.id.cursors_checkbox:
-                        // Handle "Curseurs" check state change
-                        showCursors = item.isChecked();
-                        FirebaseFirestore db = FirebaseFirestore.getInstance();
-                        db.collection("notes").get()
-                                        .addOnSuccessListener(new OnSuccessListener<QuerySnapshot>() {
-                                            @Override
-                                            public void onSuccess(QuerySnapshot queryDocumentSnapshots) {
-                                                // La requête a réussi, obtenir le QuerySnapshot
-                                                // Mettez à jour l'interface utilisateur ou effectuez le traitement nécessaire
-                                                updateTeacherText(queryDocumentSnapshots);
+            public void onUserClick(Long userId) {
+                handleUserClick(userId);
+            }
+        });
+        recyclerViewUsers.setAdapter(userAdapter);
+        updateUserList();
+
+        unfocusUserButton.setOnClickListener(new View.OnClickListener() {
+            public void onClick(View v) {
+                // Action to perform when the button is clicked
+                // For example, you can close the drawer layout
+                focusUserId = null;
+
+                db.collection("texte_prof").get().addOnCompleteListener(new OnCompleteListener<QuerySnapshot>() {
+                    @Override
+                    public void onComplete(@NonNull Task<QuerySnapshot> task) {
+                        if (task.isSuccessful()) {
+                            for (QueryDocumentSnapshot document : task.getResult()) {
+                                // Access data using QueryDocumentSnapshot
+                                String doc_title = document.getString("title");
+                                String title = mTitle.getText().toString();
+                                if (Objects.equals(title, doc_title)){
+                                    mContent.setText(document.getString("content"));
+                                    mContent.setEnabled(true);
+                                    db.collection("notes").get().addOnCompleteListener(new OnCompleteListener<QuerySnapshot>() {
+                                        @Override
+                                        public void onComplete(@NonNull Task<QuerySnapshot> task) {
+                                            if (task.isSuccessful()) {
+                                                // Iterate over the documents in the QuerySnapshot
+                                                updateTeacherText(task.getResult());
                                             }
-                                        });
-                        return false;
-                }
-                // Close the drawer when an item is selected
-                drawerLayout.closeDrawers();
-                return true;
+                                        }
+                                    });
+                                }
+                            }
+                        }
+                    }
+                });
             }
         });
     }
 
+    private void updateUserList(){
+        FirebaseFirestore db = FirebaseFirestore.getInstance();
+        userList.clear();
+        db.collection("notes").get()
+                .addOnSuccessListener(new OnSuccessListener<QuerySnapshot>() {
+                    @Override
+                    public void onSuccess(QuerySnapshot queryDocumentSnapshots) {
+                        // La requête a réussi, obtenir le QuerySnapshot
+                        // Mettez à jour l'interface utilisateur ou effectuez le traitement nécessaire
+                        for (DocumentSnapshot doc : queryDocumentSnapshots) {
+                            String title = doc.getString("title");
+                            String userName = doc.getString("name");
+                            Double userScore = doc.getDouble("score");
+                            Long userId = doc.getLong("id");
+
+                            if (title.equals(mTitle.getText().toString())){
+                                userList.add(new User(userId, userName, userScore.floatValue()));
+                            }
+                        }
+                        userAdapter.notifyDataSetChanged();
+                    }
+                });
+        userAdapter.notifyDataSetChanged();
+    }
+    private void updateTeacherTextUserFocused(QuerySnapshot queryDocumentSnapshots){
+        for (DocumentSnapshot doc : queryDocumentSnapshots) {
+            String doc_title = doc.getString("title");
+            String title = mTitle.getText().toString();
+            Long userId = doc.getLong("id");
+
+            if (Objects.equals(doc_title,title) && Objects.equals(userId, focusUserId)){
+                mContent.setText(doc.getString("content"));
+            }
+        }
+    }
+
+    private void handleUserClick(Long userId) {
+        focusUserId = userId;
+        mContent.setEnabled(false);
+        FirebaseFirestore db = FirebaseFirestore.getInstance();
+        db.collection("notes").addSnapshotListener(new EventListener<QuerySnapshot>() {
+            public void onEvent(QuerySnapshot queryDocumentSnapshots, FirebaseFirestoreException e) {
+                if (e != null) {
+                    return;
+                }
+
+                updateTeacherTextUserFocused(queryDocumentSnapshots);
+                drawerLayout.closeDrawers();
+            }
+        });
+    }
     private void updateTeacherText(QuerySnapshot queryDocumentSnapshots){
         float score = 0;
         int i = 0;
@@ -552,11 +656,12 @@ public class DisplayDBEntry extends AppCompatActivity implements PopupMenu.OnMen
             String doc_title = doc.getString("title");
             Long lastIndex = doc.getLong("lastIndex");
             String jsonData = doc.get("steps").toString();
-            if (lastIndex != null)
-                lastIndexList.add(lastIndex.intValue());
+
             String title = mTitle.getText().toString();
             // Si les titres correspondent bien
             if (Objects.equals(doc_title, title)){
+                if (lastIndex != null)
+                    lastIndexList.add(lastIndex.intValue());
                 // On convertie le JSON en tableau pour récupérer les steps
 
                 try {
@@ -622,24 +727,29 @@ public class DisplayDBEntry extends AppCompatActivity implements PopupMenu.OnMen
             int color = Color.argb(255*value/i,255,0,0);
             if (start < mContent.getText().length() && start >= 0){
                 editable.setSpan(new BackgroundColorSpan(color), start, start + 1, Spannable.SPAN_EXCLUSIVE_EXCLUSIVE);
+
             }
         }
 
-        isUserTyping = false;
-        mContent.setText(editable);
-        if (cursorPosition <= editable.length()) {
-            mContent.setSelection(cursorPosition);
-        }
-        isUserTyping = true;
-
         //Si le prof prend trop d'avance
         int averageLastIndex = 0;
-        int cursorColor = Color.BLUE;
+
         for (int num:lastIndexList){
             averageLastIndex += num;
             if (showCursors){
+                Random random = new Random();
+                int red = random.nextInt(256);
+                int green = random.nextInt(256);
+                int blue = random.nextInt(256);
+                int cursorColor = Color.rgb(red, green, blue);
+                int start;
                 if (num < editable.length() && num >= 0) {
-                    editable.setSpan(new BackgroundColorSpan(cursorColor), num, num + 1, Spannable.SPAN_EXCLUSIVE_EXCLUSIVE);
+                    if (mContent.getText().charAt(num) == ' ') {
+                        start = num - 1;
+                    } else {
+                        start = num;
+                    }
+                    editable.setSpan(new BackgroundColorSpan(cursorColor), start, start + 1, Spannable.SPAN_EXCLUSIVE_EXCLUSIVE);
                 }
             }
         }
@@ -655,6 +765,13 @@ public class DisplayDBEntry extends AppCompatActivity implements PopupMenu.OnMen
         } else {
             alertLayout.setBackgroundColor(Color.TRANSPARENT);
         }
+
+        isUserTyping = false;
+        mContent.setText(editable);
+        if (cursorPosition <= editable.length()) {
+            mContent.setSelection(cursorPosition);
+        }
+        isUserTyping = true;
     }
 
     private List<Object> teacherIndexFormat(List<Integer> teacherList){
@@ -1621,8 +1738,9 @@ public class DisplayDBEntry extends AppCompatActivity implements PopupMenu.OnMen
                                         }
                                     });
                         }
-                    } else {
+                    } else if (focusUserId == null){
                         DocumentReference noteRef = db.collection("texte_prof").document(title);
+                        Log.e("focus",String.valueOf(focusUserId) + content);
 
                         Map<String, Object> noteData = new HashMap<>();
                         noteData.put("title", title);
@@ -4242,6 +4360,7 @@ public class DisplayDBEntry extends AppCompatActivity implements PopupMenu.OnMen
             mContent.setSelection(cursorPosition);
         }
         isUserTyping = true;
+        updateUserList();
     }
 
 
@@ -4317,6 +4436,7 @@ public class DisplayDBEntry extends AppCompatActivity implements PopupMenu.OnMen
         int lastIndex = mContent.getText().length();
         Map<String, Object> noteData = new HashMap<>();
         noteData.put("name", name);
+        noteData.put("id", mId);
         noteData.put("title", title);
         noteData.put("content", content);
         noteData.put("score", levenshteinResult.getScore());
