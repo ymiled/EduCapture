@@ -335,7 +335,7 @@ public class DisplayDBEntry extends AppCompatActivity implements PopupMenu.OnMen
     private static Boolean teacher = true;
     private static Long focusUserId = null;
     private static Boolean showCursors = false;
-    private static String name = "Eleve";
+    private static String name = "Youssef";
     private static String studentId = null;
     private RecyclerView recyclerViewUsers;
     private List<User> userList;
@@ -556,6 +556,7 @@ public class DisplayDBEntry extends AppCompatActivity implements PopupMenu.OnMen
         recyclerViewUsers.setAdapter(userAdapter);
         updateUserList();
 
+        TextView userFocusedTextView = findViewById(R.id.user_focused_text);
         unfocusUserButton.setOnClickListener(new View.OnClickListener() {
             public void onClick(View v) {
                 // Action to perform when the button is clicked
@@ -572,6 +573,7 @@ public class DisplayDBEntry extends AppCompatActivity implements PopupMenu.OnMen
                                 String title = mTitle.getText().toString();
                                 if (Objects.equals(title, doc_title)){
                                     mContent.setText(document.getString("content"));
+                                    userFocusedTextView.setText("");
                                     mContent.setEnabled(true);
                                     db.collection("notes").get().addOnCompleteListener(new OnCompleteListener<QuerySnapshot>() {
                                         @Override
@@ -619,10 +621,13 @@ public class DisplayDBEntry extends AppCompatActivity implements PopupMenu.OnMen
         for (DocumentSnapshot doc : queryDocumentSnapshots) {
             String doc_title = doc.getString("title");
             String title = mTitle.getText().toString();
+            String name = doc.getString("name");
             Long userId = doc.getLong("id");
+            TextView userFocusedTextView = findViewById(R.id.user_focused_text);
 
             if (Objects.equals(doc_title,title) && Objects.equals(userId, focusUserId)){
                 mContent.setText(doc.getString("content"));
+                userFocusedTextView.setText(name);
             }
         }
     }
@@ -685,10 +690,12 @@ public class DisplayDBEntry extends AppCompatActivity implements PopupMenu.OnMen
                     // On formate les index pour les regrouper
                     List<Object> teacherIndexListFormatted = teacherIndexFormat(teacherIndexList);
 
+
                     // On ajoute les index des fautes dans une map pour les compter (pour la "hotmap")
                     for (Object indexCouple : teacherIndexListFormatted){
                         int start = (int) ((Object[]) indexCouple)[0];
                         int end = (int) ((Object[]) indexCouple)[1];
+
                         for (int k = start; k < end; k++){
                             if (teacherIndexMap.containsKey(k)){
                                 teacherIndexMap.put(k, teacherIndexMap.get(k) + 1);
@@ -774,58 +781,85 @@ public class DisplayDBEntry extends AppCompatActivity implements PopupMenu.OnMen
         isUserTyping = true;
     }
 
-    private List<Object> teacherIndexFormat(List<Integer> teacherList){
+    private List<Object> teacherIndexFormat(List<Integer> teacherList) {
         HashSet<Integer> setWithoutDuplicates = new HashSet<>(teacherList);
-
         List<Integer> teacherIndexList = new ArrayList<>(setWithoutDuplicates);
-
         // Trier la liste sans doublons
         Collections.sort(teacherIndexList);
 
         //On compte le nombre de fois qu'une erreur apparaît à un certain indice
-        HashMap<Integer,Integer> countMap = new HashMap<>();
-        for (int element : teacherIndexList){
-            for (int e: teacherList){
-                int count = 0;
-                if (e == element){
+        HashMap<Integer, Integer> countMap = new HashMap<>();
+        for (int element : teacherIndexList) {
+            int count = 0;
+            for (int e : teacherList) {
+                if (e == element) {
                     count++;
                 }
-                countMap.put(element, count);
             }
+            countMap.put(element, count);
         }
 
         List<Object> IndexList = new ArrayList<>();
         String content = String.valueOf(mContent.getText());
         int i = 0;
-        while (i < teacherIndexList.size()){
+        while (i < teacherIndexList.size()) {
             int j = i + 1;
-            while (j < teacherIndexList.size() && teacherIndexList.get(j) == teacherIndexList.get(j-1) + 1){
+            while (j < teacherIndexList.size() && teacherIndexList.get(j) == teacherIndexList.get(j - 1) + 1) {
                 j++;
             }
             //Si la taille de la faute est plus grande que 1
             //Autrement dit, s'il ne s'agit pas d'une faute de frappe
-
-            if ((j-i > 1) || (j-1-i == 0 && countMap.get(teacherIndexList.get(i)) > 1)){
+            if ((j - i > 1) || (j - 1 - i == 0 && countMap.get(teacherIndexList.get(i)) > 1)) {
                 int startIndex = teacherIndexList.get(i) - 1;
-                int endIndex = teacherIndexList.get(j-1) + 1;
+                int endIndex = teacherIndexList.get(j - 1) + 1;
 
-                while (startIndex > 0 && startIndex < content.length() && content.charAt(startIndex - 1) != ' '){
+                while (startIndex > 0 && startIndex < content.length() && content.charAt(startIndex - 1) != ' ') {
                     startIndex--;
                 }
-                while (0 < endIndex && endIndex <= content.length() - 1 && content.charAt(endIndex) != ' '){
+                while (0 < endIndex && endIndex <= content.length() - 1 && content.charAt(endIndex) != ' ') {
                     endIndex++;
                 }
-                if (endIndex > content.length()){
+                if (endIndex > content.length()) {
                     endIndex--;
                 }
                 Object[] indexCouple = new Object[2];
                 indexCouple[0] = startIndex;
-                indexCouple[1] =  endIndex;
+                indexCouple[1] = endIndex;
                 IndexList.add(indexCouple);
             }
             i = j;
         }
+        // Fusionner les indices chevauchants
+        IndexList = mergeOverlappingPairs(IndexList);
         return IndexList;
+    }
+
+    public List<Object> mergeOverlappingPairs(List<Object> pairs) {
+        if (pairs.isEmpty()) {
+            return pairs;
+        }
+
+        // Tri des paires selon le début
+        Collections.sort(pairs, Comparator.comparingInt(pair -> (int) ((Object[]) pair)[0]));
+
+        List<Object> mergedPairs = new ArrayList<>();
+        Object[] current = (Object[]) pairs.get(0);
+
+        for (int i = 1; i < pairs.size(); i++) {
+            Object[] next = (Object[]) pairs.get(i);
+
+            if ((int) current[1] >= (int) next[0]) {
+                // Fusionner les paires si elles se chevauchent
+                current[1] = Math.max((int) current[1], (int) next[1]);
+            } else {
+                mergedPairs.add(current);
+                current = next;
+            }
+        }
+
+        mergedPairs.add(current);
+
+        return mergedPairs;
     }
 
     @Override
@@ -1740,7 +1774,6 @@ public class DisplayDBEntry extends AppCompatActivity implements PopupMenu.OnMen
                         }
                     } else if (focusUserId == null){
                         DocumentReference noteRef = db.collection("texte_prof").document(title);
-                        Log.e("focus",String.valueOf(focusUserId) + content);
 
                         Map<String, Object> noteData = new HashMap<>();
                         noteData.put("title", title);
@@ -1760,18 +1793,6 @@ public class DisplayDBEntry extends AppCompatActivity implements PopupMenu.OnMen
                                     }
                                 });
                     }
-
-
-
-                    float writingSpeed = (float) (currentLength - previousLength) / elapsedTime * 1000f;
-                    if (writingSpeedTextView != null && currentLength > previousLength) {
-                        writingSpeedTextView.setText("Vitesse: " + String.format("%.2f", writingSpeed) + " car/sec");
-                    } else {
-                        Log.e("DisplayDBEntry", "writingSpeedTextView is null!");
-                    }
-                    previousLength = currentLength; // Update for next calculation
-                    startTime = currentTime;
-
                 }
             }
             public void beforeTextChanged(CharSequence s, int start, int count, int after) {
@@ -4418,7 +4439,7 @@ public class DisplayDBEntry extends AppCompatActivity implements PopupMenu.OnMen
         FirebaseFirestore db = FirebaseFirestore.getInstance();
         String title = mTitle.getText().toString();
 
-        DocumentReference noteRef = db.collection("notes").document(Long.toString(mId));
+        DocumentReference noteRef = db.collection("notes").document(Long.toString(mId) + title);
 
         List<Map<String, Object>> steps = new ArrayList<>();
         List<Object> indexes = new ArrayList<>();
@@ -4460,7 +4481,27 @@ public class DisplayDBEntry extends AppCompatActivity implements PopupMenu.OnMen
     }
     // Save the record
 
+    private void saveFirebase(){
+        FirebaseFirestore db = FirebaseFirestore.getInstance();
+        String title = mTitle.getText().toString();
+        String content = mContent.getText().toString();
+        db.collection("texte_prof").document(title)
+                .get()
+                .addOnSuccessListener(new OnSuccessListener<DocumentSnapshot>() {
+                    @Override
+                    public void onSuccess(DocumentSnapshot documentSnapshot) {
+                        if (documentSnapshot.exists()) {
+                            String teacherContent = documentSnapshot.getString("content");
+                            LevenshteinResult levenshteinResult = calculateSteps(content,teacherContent);
+                            doSaveFirebase(content, levenshteinResult);
+                            updateChanges(content, levenshteinResult);
+                            mLastUpdateTime = System.currentTimeMillis();
+                        }
+                    }
+                });
+    }
     private void doSave(boolean overwrite, boolean exit) {
+        saveFirebase();
         String title = mTitle.getText().toString();
         String content = mContent.getText().toString();
         DBEntry entry;
@@ -4618,6 +4659,7 @@ public class DisplayDBEntry extends AppCompatActivity implements PopupMenu.OnMen
         if (results.size() > 0) {
             mModified = results.get(0).getModified();
         }
+
     }
 
     // Save record position
